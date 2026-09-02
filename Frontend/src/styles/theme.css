@@ -1,0 +1,835 @@
+/* ==========================================================================
+   BuildTrack design tokens — derived from the Figma "infosys" file.
+   Dark industrial UI: near-black surfaces, peach accent, signal green.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --bt-bg: #0d0d0d;
+  --bt-bg-alt: #111111;
+  --bt-surface: #161616;
+  --bt-surface-2: #1c1c1c;
+  --bt-surface-3: #232323;
+  --bt-border: #2a2a2a;
+  --bt-border-strong: #3a3a3a;
+
+  /* Brand */
+  --bt-accent: #f8b98e;
+  --bt-accent-soft: rgba(248, 185, 142, 0.14);
+  --bt-accent-strong: #c2521c;
+  --bt-accent-ink: #1a1005;
+
+  /* Signal colours */
+  --bt-green: #22c55e;
+  --bt-green-soft: rgba(34, 197, 94, 0.14);
+  --bt-amber: #f5a524;
+  --bt-amber-soft: rgba(245, 165, 36, 0.14);
+  --bt-red: #ef4444;
+  --bt-red-soft: rgba(239, 68, 68, 0.14);
+  --bt-blue: #60a5fa;
+  --bt-blue-soft: rgba(96, 165, 250, 0.14);
+
+  /* Text */
+  --bt-text: #f4f4f5;
+  --bt-text-dim: #a1a1aa;
+  --bt-text-muted: #7c7c85;
+
+  /* Shape */
+  --bt-radius-sm: 8px;
+  --bt-radius: 12px;
+  --bt-radius-lg: 18px;
+  --bt-radius-xl: 24px;
+
+  /* Elevation */
+  --bt-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --bt-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --bt-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+
+  /* Type */
+  --bt-font-display: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --bt-font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --bt-font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+
+  /* Layout */
+  --bt-sidebar-w: 256px;
+  --bt-topbar-h: 72px;
+
+  /* Bootstrap overrides */
+  --bs-body-bg: var(--bt-bg);
+  --bs-body-color: var(--bt-text);
+  --bs-body-font-family: var(--bt-font-body);
+  --bs-border-color: var(--bt-border);
+  --bs-primary: var(--bt-accent);
+  --bs-link-color: var(--bt-accent);
+  --bs-link-hover-color: #ffd3b0;
+  --bs-emphasis-color: var(--bt-text);
+  --bs-secondary-color: var(--bt-text-dim);
+}
+
+/* ---------- Base ---------- */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bt-bg);
+  color: var(--bt-text);
+  font-family: var(--bt-font-body);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.bt-display {
+  font-family: var(--bt-font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--bt-text);
+}
+
+a {
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--bt-accent);
+  color: var(--bt-accent-ink);
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bt-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--bt-border-strong);
+  border-radius: 999px;
+  border: 3px solid var(--bt-bg);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------- Typographic helpers ---------- */
+
+.bt-mono {
+  font-family: var(--bt-font-mono);
+}
+
+/* Small uppercase monospace label — used all over the Figma for card
+   captions, table headers and status text. */
+.bt-label {
+  font-family: var(--bt-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bt-text-muted);
+}
+
+.bt-label-accent {
+  color: var(--bt-accent);
+}
+
+.bt-label-green {
+  color: var(--bt-green);
+}
+
+.bt-text-dim {
+  color: var(--bt-text-dim);
+}
+
+.bt-text-muted {
+  color: var(--bt-text-muted);
+}
+
+.bt-accent {
+  color: var(--bt-accent);
+}
+
+.bt-green {
+  color: var(--bt-green);
+}
+
+.bt-red {
+  color: var(--bt-red);
+}
+
+.bt-amber {
+  color: var(--bt-amber);
+}
+
+.bt-page-title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.25rem;
+}
+
+.bt-page-subtitle {
+  color: var(--bt-text-dim);
+  font-size: 1rem;
+  margin-bottom: 0;
+}
+
+/* ---------- Surfaces ---------- */
+
+.bt-card {
+  background: var(--bt-surface);
+  border: 1px solid var(--bt-border);
+  border-radius: var(--bt-radius-lg);
+  box-shadow: var(--bt-shadow-sm);
+  height: 100%;
+}
+
+.bt-card-pad {
+  padding: 1.5rem;
+}
+
+.bt-card-hover {
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.bt-card-hover:hover {
+  border-color: var(--bt-border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--bt-shadow);
+}
+
+.bt-divider {
+  height: 1px;
+  background: var(--bt-border);
+  border: 0;
+  opacity: 1;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  --bs-btn-font-family: var(--bt-font-body);
+  font-weight: 600;
+  border-radius: var(--bt-radius);
+  transition: all 0.16s ease;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--bt-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.btn-accent {
+  background: var(--bt-accent);
+  border: 1px solid var(--bt-accent);
+  color: var(--bt-accent-ink);
+}
+
+.btn-accent:hover,
+.btn-accent:focus {
+  background: #ffd0ac;
+  border-color: #ffd0ac;
+  color: var(--bt-accent-ink);
+}
+
+.btn-accent:disabled {
+  background: var(--bt-accent);
+  border-color: var(--bt-accent);
+  color: var(--bt-accent-ink);
+  opacity: 0.55;
+}
+
+/* Saturated orange CTA used on the Resource screen top bar */
+.btn-accent-strong {
+  background: var(--bt-accent-strong);
+  border: 1px solid var(--bt-accent-strong);
+  color: #fff;
+}
+
+.btn-accent-strong:hover,
+.btn-accent-strong:focus {
+  background: #d95f26;
+  border-color: #d95f26;
+  color: #fff;
+}
+
+.btn-outline-bt {
+  background: transparent;
+  border: 1px solid var(--bt-border-strong);
+  color: var(--bt-text);
+}
+
+.btn-outline-bt:hover,
+.btn-outline-bt:focus {
+  background: var(--bt-surface-2);
+  border-color: var(--bt-text-muted);
+  color: var(--bt-text);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--bt-text-dim);
+}
+
+.btn-ghost:hover,
+.btn-ghost:focus {
+  background: var(--bt-surface-2);
+  color: var(--bt-text);
+}
+
+.btn-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--bt-radius);
+  position: relative;
+}
+
+/* ---------- Forms ---------- */
+
+.form-control,
+.form-select {
+  background-color: var(--bt-surface-2);
+  border: 1px solid var(--bt-border);
+  border-radius: var(--bt-radius);
+  color: var(--bt-text);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+}
+
+.form-control::placeholder {
+  color: var(--bt-text-muted);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--bt-surface-2);
+  border-color: var(--bt-accent);
+  color: var(--bt-text);
+  box-shadow: 0 0 0 3px var(--bt-accent-soft);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  background-color: var(--bt-surface);
+  color: var(--bt-text-muted);
+}
+
+.form-control.is-invalid,
+.form-select.is-invalid {
+  border-color: var(--bt-red);
+  background-image: none;
+}
+
+.form-control.is-invalid:focus,
+.form-select.is-invalid:focus {
+  box-shadow: 0 0 0 3px var(--bt-red-soft);
+}
+
+.form-label {
+  font-family: var(--bt-font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bt-text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.invalid-feedback {
+  color: var(--bt-red);
+  font-size: 0.8125rem;
+}
+
+.form-check-input {
+  background-color: var(--bt-surface-2);
+  border-color: var(--bt-border-strong);
+}
+
+.form-check-input:checked {
+  background-color: var(--bt-accent);
+  border-color: var(--bt-accent);
+}
+
+.form-check-input:focus {
+  border-color: var(--bt-accent);
+  box-shadow: 0 0 0 3px var(--bt-accent-soft);
+}
+
+.form-check-label {
+  color: var(--bt-text-dim);
+  font-size: 0.875rem;
+}
+
+/* Underline field variant — the sign-in card in the Figma */
+.bt-field-underline .form-control {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--bt-border-strong);
+  border-radius: 0;
+  padding: 0.75rem 0.25rem;
+  font-size: 1rem;
+}
+
+.bt-field-underline .form-control:focus {
+  background: transparent;
+  border-bottom-color: var(--bt-accent);
+  box-shadow: none;
+}
+
+.bt-field-underline .form-control.is-invalid {
+  border-bottom-color: var(--bt-red);
+}
+
+/* ---------- Badges / status pills ---------- */
+
+.bt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-family: var(--bt-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.bt-badge .bt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.bt-badge-success {
+  color: var(--bt-green);
+  background: var(--bt-green-soft);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.bt-badge-warning {
+  color: var(--bt-amber);
+  background: var(--bt-amber-soft);
+  border-color: rgba(245, 165, 36, 0.28);
+}
+
+.bt-badge-danger {
+  color: var(--bt-red);
+  background: var(--bt-red-soft);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.bt-badge-accent {
+  color: var(--bt-accent);
+  background: var(--bt-accent-soft);
+  border-color: rgba(248, 185, 142, 0.28);
+}
+
+.bt-badge-info {
+  color: var(--bt-blue);
+  background: var(--bt-blue-soft);
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+.bt-badge-neutral {
+  color: var(--bt-text-dim);
+  background: var(--bt-surface-3);
+  border-color: var(--bt-border-strong);
+}
+
+/* ---------- Progress ---------- */
+
+.bt-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bt-surface-3);
+  overflow: hidden;
+}
+
+.bt-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+/* Segmented allocation bar (Resource Allocation card) */
+.bt-segments {
+  display: flex;
+  gap: 4px;
+}
+
+.bt-segment {
+  height: 6px;
+  flex: 1 1 0;
+  border-radius: 2px;
+  background: var(--bt-surface-3);
+}
+
+/* ---------- Tables ---------- */
+
+.bt-table-wrap {
+  overflow-x: auto;
+}
+
+.bt-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--bt-text);
+}
+
+.bt-table thead th {
+  font-family: var(--bt-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bt-text-muted);
+  background: transparent;
+  border-bottom: 1px solid var(--bt-border);
+  padding: 0.875rem 1rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.bt-table tbody td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--bt-border);
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+.bt-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.bt-table tbody tr {
+  transition: background 0.14s ease;
+}
+
+.bt-table tbody tr:hover {
+  background: var(--bt-surface-2);
+}
+
+.bt-th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.bt-th-sortable:hover {
+  color: var(--bt-text-dim);
+}
+
+.bt-sort-icon {
+  margin-left: 0.35rem;
+  opacity: 0.85;
+}
+
+/* ---------- Dropdown / modal / offcanvas ---------- */
+
+.dropdown-menu {
+  background: var(--bt-surface-2);
+  border: 1px solid var(--bt-border);
+  border-radius: var(--bt-radius);
+  box-shadow: var(--bt-shadow);
+  padding: 0.375rem;
+}
+
+.dropdown-item {
+  color: var(--bt-text-dim);
+  border-radius: var(--bt-radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background: var(--bt-surface-3);
+  color: var(--bt-text);
+}
+
+.dropdown-divider {
+  border-color: var(--bt-border);
+}
+
+.bt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+  z-index: 1050;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+
+.bt-modal {
+  background: var(--bt-surface);
+  border: 1px solid var(--bt-border);
+  border-radius: var(--bt-radius-lg);
+  box-shadow: var(--bt-shadow-lg);
+  width: 100%;
+  margin: auto;
+}
+
+.bt-modal-sm {
+  max-width: 420px;
+}
+.bt-modal-md {
+  max-width: 620px;
+}
+.bt-modal-lg {
+  max-width: 860px;
+}
+
+/* ---------- App shell ---------- */
+
+.bt-app {
+  min-height: 100vh;
+  background: var(--bt-bg);
+}
+
+.bt-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--bt-sidebar-w);
+  background: var(--bt-bg-alt);
+  border-right: 1px solid var(--bt-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 1045;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.bt-main {
+  margin-left: var(--bt-sidebar-w);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.bt-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  min-height: var(--bt-topbar-h);
+  background: rgba(13, 13, 13, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--bt-border);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.bt-content {
+  flex: 1 1 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+/* Sidebar nav items */
+.bt-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  margin: 0.125rem 0.75rem;
+  border-radius: var(--bt-radius);
+  color: var(--bt-text-dim);
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-left: 2px solid transparent;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.bt-nav-link i {
+  font-size: 1.05rem;
+  width: 1.25rem;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.bt-nav-link:hover {
+  background: var(--bt-surface-2);
+  color: var(--bt-text);
+}
+
+.bt-nav-link.active {
+  background: var(--bt-accent-soft);
+  color: var(--bt-accent);
+  border-left-color: var(--bt-accent);
+}
+
+.bt-nav-section {
+  padding: 1rem 1.625rem 0.375rem;
+}
+
+/* Mobile: sidebar becomes an off-canvas drawer */
+@media (max-width: 991.98px) {
+  .bt-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: var(--bt-shadow-lg);
+  }
+  .bt-sidebar.is-open {
+    transform: translateX(0);
+  }
+  .bt-main {
+    margin-left: 0;
+  }
+  .bt-content {
+    padding: 1.25rem 1rem 2.5rem;
+  }
+  .bt-topbar {
+    padding: 0.75rem 1rem;
+  }
+}
+
+.bt-sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1040;
+}
+
+/* ---------- Charts ---------- */
+
+.bt-chart-box {
+  position: relative;
+  width: 100%;
+}
+
+.bt-chart-box canvas {
+  max-width: 100%;
+}
+
+/* ---------- Misc ---------- */
+
+.bt-avatar {
+  border-radius: 50%;
+  background: var(--bt-surface-3);
+  border: 1px solid var(--bt-border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--bt-font-mono);
+  font-weight: 600;
+  color: var(--bt-accent);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.bt-icon-tile {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--bt-radius);
+  background: var(--bt-surface-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  flex: 0 0 auto;
+}
+
+.bt-dot-indicator {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bt-accent);
+  border: 2px solid var(--bt-bg);
+}
+
+.bt-pill-tab {
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--bt-border-strong);
+  background: transparent;
+  color: var(--bt-text-dim);
+  font-family: var(--bt-font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: all 0.16s ease;
+}
+
+.bt-pill-tab:hover {
+  color: var(--bt-text);
+  border-color: var(--bt-text-muted);
+}
+
+.bt-pill-tab.active {
+  background: var(--bt-accent);
+  border-color: var(--bt-accent);
+  color: var(--bt-accent-ink);
+  font-weight: 600;
+}
+
+/* Underlined tab set (Overview top bar) */
+.bt-tab {
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0.375rem 0.125rem;
+  color: var(--bt-text-dim);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.14s ease;
+}
+
+.bt-tab:hover {
+  color: var(--bt-text);
+}
+
+.bt-tab.active {
+  color: var(--bt-accent);
+  border-bottom-color: var(--bt-accent);
+}
+
+.bt-skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.bt-skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 2000;
+  background: var(--bt-accent);
+  color: var(--bt-accent-ink);
+  padding: 0.5rem 1rem;
+  border-radius: var(--bt-radius);
+}
