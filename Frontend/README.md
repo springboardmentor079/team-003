@@ -94,8 +94,7 @@ Environment (`.env.local`, git-ignored — see `.env.example`):
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
-
-The client (`src/services/supabaseClient.ts`) initialises only when both vars
+ initialises only when both vars
 are present; without them the app falls back to bundled mock data, so it still
 runs on a fresh checkout. **Vite reads env vars at startup — restart the dev
 server after changing `.env.local`.**
