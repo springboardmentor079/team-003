@@ -1,204 +1,23 @@
-import type { Session } from '@supabase/supabase-js';
-
 import { DEMO_PASSWORD, users } from '../data/users';
 import type {
   AuthSession,
   LoginCredentials,
   RegistrationDetails,
   User,
-  UserRole,
 } from '../types';
 import { initialsOf } from '../utils/format';
 import { mockError, mockResponse } from './apiClient';
-import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 
 const SESSION_KEY = 'buildtrack.session';
 const TOKEN_KEY = 'buildtrack.token';
 
-/** Shape of a row in public.profiles. */
-interface ProfileRow {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  employee_id: string | null;
-  department: string;
-  status: 'Active' | 'Inactive' | 'Suspended';
-  last_login: string | null;
-}
-
-function profileToUser(row: ProfileRow): User {
-  return {
-    id: row.id,
-    fullName: row.full_name,
-    email: row.email,
-    phone: row.phone,
-    role: row.role,
-    employeeId: row.employee_id ?? '—',
-    department: row.department,
-    status: row.status,
-    lastLogin: row.last_login
-      ? row.last_login.slice(0, 16).replace('T', ' ')
-      : '—',
-    initials: initialsOf(row.full_name),
-  };
-}
-
-/** Loads the profile row for an authenticated user id. */
-async function loadProfile(userId: string): Promise<User> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(
-      'id, full_name, email, phone, role, employee_id, department, status, last_login',
-    )
-    .eq('id', userId)
-    .single<ProfileRow>();
-
-  if (error || !data) {
-    throw new Error('Signed in, but your profile could not be loaded.');
-  }
-
-  return profileToUser(data);
-}
-
-function toAuthSession(user: User, session: Session): AuthSession {
-  return { user, token: session.access_token };
-}
-
-/* ------------------------------------------------------------------ */
-/* Supabase-backed implementation                                      */
-/* ------------------------------------------------------------------ */
-
-const supabaseAuth = {
-  async login({ email, password }: LoginCredentials): Promise<AuthSession> {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (error || !data.session) {
-      throw new Error(error?.message ?? 'Invalid email address or password.');
-    }
-
-    const user = await loadProfile(data.session.user.id);
-
-    if (user.status !== 'Active') {
-      await supabase.auth.signOut();
-      throw new Error('This account is not active. Contact your administrator.');
-    }
-
-    // Record the login time (fire-and-forget; guarded by RLS to own row).
-    void supabase
-      .from('profiles')
-      .update({ last_login: new Date().toISOString() })
-      .eq('id', user.id);
-
-    return toAuthSession(user, data.session);
-  },
-
-  async register(details: RegistrationDetails): Promise<AuthSession> {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.auth.signUp({
-      email: details.email.trim(),
-      password: details.password,
-      options: {
-        data: {
-          full_name: details.fullName.trim(),
-          phone: details.phone.trim(),
-          role: details.role,
-        },
-      },
-    });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    if (!data.session) {
-      // Email confirmation is enabled on the project.
-      throw new Error(
-        'Account created. Please confirm your email address, then sign in.',
-      );
-    }
-
-    const user = await loadProfile(data.session.user.id);
-    return toAuthSession(user, data.session);
-  },
-
-  async requestPasswordReset(email: string): Promise<{ message: string }> {
-    const supabase = getSupabase();
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/login`,
-    });
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return {
-      message: `If an account exists for ${email.trim()}, a reset link has been sent.`,
-    };
-  },
-
-  async getSession(): Promise<AuthSession | null> {
-    const supabase = getSupabase();
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) return null;
-
-    try {
-      const user = await loadProfile(data.session.user.id);
-      return toAuthSession(user, data.session);
-    } catch {
-      return null;
-    }
-  },
-
-  async logout(): Promise<void> {
-    await getSupabase().auth.signOut();
-  },
-
-  onAuthStateChange(callback: (session: AuthSession | null) => void): () => void {
-    const supabase = getSupabase();
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        callback(null);
-        return;
-      }
-      loadProfile(session.user.id)
-        .then((user) => callback(toAuthSession(user, session)))
-        .catch(() => callback(null));
-    });
-
-    return () => data.subscription.unsubscribe();
-  },
-
-  async listUsers(): Promise<User[]> {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(
-        'id, full_name, email, phone, role, employee_id, department, status, last_login',
-      )
-      .order('full_name');
-
-    if (error || !data) {
-      throw new Error('Unable to load users.');
-    }
-
-    return (data as ProfileRow[]).map(profileToUser);
-  },
-};
-
-/* ------------------------------------------------------------------ */
-/* Mock implementation (used when Supabase env vars are absent)        */
-/* ------------------------------------------------------------------ */
-
 function issueMockToken(user: User): string {
   return `mock-jwt.${btoa(user.id)}.${Date.now()}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Clean Mock Implementation                                          */
+/* ------------------------------------------------------------------ */
 
 const mockAuth = {
   async login({ email, password }: LoginCredentials): Promise<AuthSession> {
@@ -276,7 +95,7 @@ const mockAuth = {
   },
 
   onAuthStateChange(): () => void {
-    // Mock sessions never change out from under us.
+    // Mock sessions never change out from under us locally
     return () => undefined;
   },
 
@@ -284,7 +103,7 @@ const mockAuth = {
     return mockResponse(users);
   },
 
-  /** Persist a mock session (no-op for the Supabase client, which self-persists). */
+  /** Persist a mock session */
   persist(session: AuthSession, remember: boolean): void {
     const store = remember ? localStorage : sessionStorage;
     store.setItem(SESSION_KEY, JSON.stringify(session));
@@ -297,22 +116,21 @@ const mockAuth = {
 /* ------------------------------------------------------------------ */
 
 export const authService = {
-  isSupabase: isSupabaseConfigured,
+  // Always false now since Supabase frontend functionality is removed
+  isSupabase: false,
 
-  login: isSupabaseConfigured ? supabaseAuth.login : mockAuth.login,
-  register: isSupabaseConfigured ? supabaseAuth.register : mockAuth.register,
-  requestPasswordReset: isSupabaseConfigured
-    ? supabaseAuth.requestPasswordReset
-    : mockAuth.requestPasswordReset,
-  getSession: isSupabaseConfigured ? supabaseAuth.getSession : mockAuth.getSession,
-  logout: isSupabaseConfigured ? supabaseAuth.logout : mockAuth.logout,
-  onAuthStateChange: isSupabaseConfigured
-    ? supabaseAuth.onAuthStateChange
-    : mockAuth.onAuthStateChange,
-  listUsers: isSupabaseConfigured ? supabaseAuth.listUsers : mockAuth.listUsers,
+  login: mockAuth.login,
+  register: mockAuth.register,
+  requestPasswordReset: mockAuth.requestPasswordReset,
+  getSession: mockAuth.getSession,
+  logout: mockAuth.logout,
+  onAuthStateChange: mockAuth.onAuthStateChange,
+  listUsers: mockAuth.listUsers,
 
-  /** Mock-only session persistence; a no-op under Supabase. */
+  /** Mock session persistence */
   persist(session: AuthSession, remember: boolean): void {
-    if (!isSupabaseConfigured) mockAuth.persist(session, remember);
+    mockAuth.persist(session, remember);
   },
 };
+
+export default authService;
