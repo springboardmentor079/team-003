@@ -5,7 +5,12 @@ import { DoughnutChart } from '../../components/charts/DoughnutChart';
 import { chartColors } from '../../components/charts/chartTheme';
 import { FilterPanel } from '../../components/common/FilterPanel';
 import { Modal } from '../../components/common/Modal';
-import { PageHeader, SectionCard } from '../../components/common/PageHeader';
+import {
+  LoadingState,
+  PageHeader,
+  SectionCard,
+  StateMessage,
+} from '../../components/common/PageHeader';
 import { Pagination } from '../../components/common/Pagination';
 import { SearchBar } from '../../components/common/SearchBar';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -14,12 +19,10 @@ import { ChartCard } from '../../components/dashboard/ChartCard';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { FormField } from '../../components/forms/FormField';
 import { DataTable } from '../../components/tables/DataTable';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { useTableControls } from '../../hooks/useTableControls';
-import {
-  materialRequests,
-  materials,
-  stockByCategory,
-} from '../../data/inventory';
+import { inventoryService } from '../../services';
+import { materialRequests, stockByCategory } from '../../data/inventory';
 import { projects } from '../../data/projects';
 import {
   MATERIAL_CATEGORIES,
@@ -40,68 +43,67 @@ import {
 const TABS = ['Stock register', 'Material requests'] as const;
 type Tab = (typeof TABS)[number];
 
-const lowStockCount = materials.filter(
-  (item) => item.stockStatus === 'Low Stock' || item.stockStatus === 'Out of Stock',
-).length;
+/** KPI cards computed from the live stock list (module 5, features i–v). */
+function buildKpis(items: MaterialItem[], openRequests: number): KpiMetric[] {
+  const lowStock = items.filter(
+    (item) => item.stockStatus === 'Low Stock' || item.stockStatus === 'Out of Stock',
+  ).length;
+  const inStock = items.filter((item) => item.stockStatus === 'In Stock').length;
+  const stockValue = items.reduce(
+    (sum, item) => sum + item.quantityInStock * item.unitCost,
+    0,
+  );
 
-const stockValue = materials.reduce(
-  (sum, item) => sum + item.quantityInStock * item.unitCost,
-  0,
-);
-
-const KPIS: KpiMetric[] = [
-  {
-    id: 'inv-items',
-    label: 'Stock Items',
-    value: String(materials.length),
-    unit: 'SKUs',
-    caption: 'Across all seven material categories',
-    delta: `${materials.filter((item) => item.stockStatus === 'In Stock').length} in stock`,
-    trend: 'flat',
-    progress: 72,
-    accent: 'accent',
-    icon: 'bi-box-seam',
-  },
-  {
-    id: 'inv-low',
-    label: 'Reorder Alerts',
-    value: String(lowStockCount),
-    unit: 'items',
-    caption: 'At or below reorder level',
-    delta: 'Action required',
-    trend: 'down',
-    progress: 35,
-    accent: 'red',
-    icon: 'bi-exclamation-triangle',
-  },
-  {
-    id: 'inv-requests',
-    label: 'Open Requests',
-    value: String(
-      materialRequests.filter(
-        (request) => request.status === 'Pending' || request.status === 'Approved',
-      ).length,
-    ),
-    unit: 'requests',
-    caption: 'Awaiting issue or fulfilment',
-    delta: 'This week',
-    trend: 'flat',
-    progress: 55,
-    accent: 'amber',
-    icon: 'bi-clipboard-check',
-  },
-  {
-    id: 'inv-value',
-    label: 'Stock Value',
-    value: `₹${(stockValue / 10000000).toFixed(2)} Cr`,
-    caption: 'Total valuation of held inventory',
-    delta: 'Current',
-    trend: 'flat',
-    progress: 68,
-    accent: 'green',
-    icon: 'bi-cash-stack',
-  },
-];
+  return [
+    {
+      id: 'inv-items',
+      label: 'Stock Items',
+      value: String(items.length),
+      unit: 'SKUs',
+      caption: 'Tracked across all store locations',
+      delta: `${inStock} in stock`,
+      trend: 'flat',
+      progress: items.length > 0 ? Math.round((inStock / items.length) * 100) : 0,
+      accent: 'accent',
+      icon: 'bi-box-seam',
+    },
+    {
+      id: 'inv-low',
+      label: 'Reorder Alerts',
+      value: String(lowStock),
+      unit: 'items',
+      caption: 'At or below reorder level',
+      delta: lowStock > 0 ? 'Action required' : 'Healthy',
+      trend: 'down',
+      progress: items.length > 0 ? Math.round((lowStock / items.length) * 100) : 0,
+      accent: 'red',
+      icon: 'bi-exclamation-triangle',
+    },
+    {
+      id: 'inv-requests',
+      label: 'Open Requests',
+      value: String(openRequests),
+      unit: 'requests',
+      caption: 'Awaiting issue or fulfilment',
+      delta: 'This week',
+      trend: 'flat',
+      progress: 55,
+      accent: 'amber',
+      icon: 'bi-clipboard-check',
+    },
+    {
+      id: 'inv-value',
+      label: 'Stock Value',
+      value: `₹${(stockValue / 100000).toFixed(1)} L`,
+      caption: 'Total valuation of held inventory',
+      delta: 'Current',
+      trend: 'flat',
+      progress: 68,
+      accent: 'green',
+      icon: 'bi-cash-stack',
+    },
+  ];
+}
 
 const MATERIAL_FILTERS: FilterDefinition[] = [
   {
@@ -168,8 +170,17 @@ export function InventoryPage() {
   const [values, setValues] = useState<RequestFormValues>(EMPTY_REQUEST);
   const [errors, setErrors] = useState<FieldErrors<RequestFormValues>>({});
 
+  const { data: materials, loading, error } = useAsyncData(
+    () => inventoryService.materials(),
+    [],
+  );
+  const openRequests = materialRequests.filter(
+    (request) => request.status === 'Pending' || request.status === 'Approved',
+  ).length;
+  const kpis = buildKpis(materials ?? [], openRequests);
+
   const materialControls = useTableControls<MaterialItem>({
-    rows: materials,
+    rows: materials ?? [],
     searchKeys: ['name', 'materialCode', 'category', 'storeLocation', 'allocatedProject'],
     filterKeys: { category: 'category', stockStatus: 'stockStatus' },
     initialSortKey: 'name',
@@ -332,7 +343,7 @@ export function InventoryPage() {
       />
 
       <div className="row g-3 g-lg-4 mb-4">
-        {KPIS.map((metric) => (
+        {kpis.map((metric) => (
           <div className="col-12 col-sm-6 col-xl-3" key={metric.id}>
             <StatCard metric={metric} />
           </div>
@@ -434,7 +445,15 @@ export function InventoryPage() {
           </>
         }
       >
-        {tab === 'Stock register' ? (
+        {tab === 'Stock register' && loading ? (
+          <LoadingState label="Loading inventory…" />
+        ) : tab === 'Stock register' && error ? (
+          <StateMessage
+            icon="bi-exclamation-triangle"
+            title="Couldn't load inventory"
+            message={error}
+          />
+        ) : tab === 'Stock register' ? (
           <DataTable
             columns={materialColumns}
             rows={materialControls.pageRows}

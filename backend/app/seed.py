@@ -59,8 +59,15 @@ def seed_database():
             phone="+1-555-0105",
             role=UserRole.CLIENT.value
         )
+        worker = User(
+            email="worker@buildtrack.com",
+            hashed_password=get_password_hash("worker123"),
+            full_name="Rajesh Kumar (Site Worker)",
+            phone="+1-555-0106",
+            role="worker"
+        )
 
-        db.add_all([admin, manager, engineer, contractor, client])
+        db.add_all([admin, manager, engineer, contractor, client, worker])
         db.commit()
 
         # Refresh to get IDs
@@ -69,6 +76,7 @@ def seed_database():
         db.refresh(engineer)
         db.refresh(contractor)
         db.refresh(client)
+        db.refresh(worker)
 
         # 2. Create Projects
         proj1 = Project(

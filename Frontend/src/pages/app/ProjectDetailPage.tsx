@@ -3,14 +3,19 @@ import { Link, useParams } from 'react-router-dom';
 import { DoughnutChart } from '../../components/charts/DoughnutChart';
 import { LineChart } from '../../components/charts/LineChart';
 import { chartColors } from '../../components/charts/chartTheme';
-import { PageHeader, StateMessage } from '../../components/common/PageHeader';
+import {
+  LoadingState,
+  PageHeader,
+  StateMessage,
+} from '../../components/common/PageHeader';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ActivityFeed } from '../../components/dashboard/ActivityFeed';
 import { ChartCard } from '../../components/dashboard/ChartCard';
 import { MilestoneTimeline } from '../../components/dashboard/MilestoneTimeline';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { projectService } from '../../services';
 import { budgetLines } from '../../data/budget';
-import { milestones, projects } from '../../data/projects';
 import { activityLog, weeklyProgressTrend } from '../../data/siteProgress';
 import { formatCurrency, formatCurrencyCompact, formatDate } from '../../utils/format';
 
@@ -20,7 +25,23 @@ import { formatCurrency, formatCurrencyCompact, formatDate } from '../../utils/f
  */
 export function ProjectDetailPage() {
   const { code } = useParams<{ code: string }>();
-  const project = projects.find((entry) => entry.code === code);
+
+  const { data: project, loading } = useAsyncData(
+    () => projectService.getByCode(code ?? ''),
+    [code],
+  );
+  const { data: liveMilestones } = useAsyncData(
+    () => (code ? projectService.milestonesFor(code) : Promise.resolve([])),
+    [code],
+  );
+
+  if (loading) {
+    return (
+      <div className="bt-card bt-card-pad">
+        <LoadingState label="Loading project…" />
+      </div>
+    );
+  }
 
   if (!project) {
     return (
@@ -39,9 +60,7 @@ export function ProjectDetailPage() {
     );
   }
 
-  const projectMilestones = milestones.filter(
-    (milestone) => milestone.projectId === project.id,
-  );
+  const projectMilestones = liveMilestones ?? [];
   const projectActivity = activityLog.filter(
     (entry) => entry.projectId === project.id,
   );

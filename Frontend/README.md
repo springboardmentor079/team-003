@@ -9,6 +9,10 @@ reference document, which is authoritative wherever the two disagreed.
 
 ## Getting started
 
+Run the FastAPI backend first (see `../backend/README.md`) — it serves on
+`http://127.0.0.1:8000`. The Vite dev server proxies `/api` to it, so no
+frontend env vars are needed.
+
 ```bash
 npm install
 npm run dev      # start the Vite dev server (http://localhost:5173)
@@ -16,19 +20,23 @@ npm run build    # type-check + production build
 npm run lint     # oxlint
 ```
 
+If the backend runs elsewhere, set `VITE_API_PROXY_TARGET` (dev proxy target)
+or `VITE_API_BASE_URL` (absolute API base) before starting Vite.
+
 ## Demo sign-in
 
-Mock authentication only. Password for every demo account: `buildtrack123`.
-The login screen has one-click role buttons for all six roles.
+Auth runs against the backend's JWT endpoints. Credentials match the backend
+seed (`backend/app/seed.py`); the login screen has one-click role buttons that
+autofill each account.
 
-| Role            | Email                     |
-| --------------- | ------------------------- |
-| Administrator   | admin@buildtrack.com      |
-| Project Manager | manager@buildtrack.com    |
-| Site Engineer   | engineer@buildtrack.com   |
-| Contractor      | contractor@buildtrack.com |
-| Worker          | worker@buildtrack.com     |
-| Client          | client@buildtrack.com     |
+| Role            | Email                     | Password       |
+| --------------- | ------------------------- | -------------- |
+| Administrator   | admin@buildtrack.com      | admin123       |
+| Project Manager | manager@buildtrack.com    | manager123     |
+| Site Engineer   | engineer@buildtrack.com   | engineer123    |
+| Contractor      | contractor@buildtrack.com | contractor123  |
+| Worker          | worker@buildtrack.com     | worker123      |
+| Client          | client@buildtrack.com     | client123      |
 
 ## Structure
 
@@ -45,7 +53,7 @@ src/
 ├── pages/           auth/ + app/ (one page per module) + Landing, NotFound
 ├── layouts/         AppLayout (session-guarded shell), AuthLayout, PublicLayout
 ├── routes/          AppRoutes, navigation config
-├── services/        API boundary (mock data today, FastAPI-ready)
+├── services/        API boundary (FastAPI for M2 modules; mock elsewhere)
 ├── hooks/           useAuth, useAsyncData, useTableControls
 ├── data/            typed mock datasets per module
 ├── types/           shared domain types (all unions from the document)
@@ -83,51 +91,25 @@ corrections made against the document:
   Notifications, Inventory, Procurement and the Registration / Password-reset
   screens, all absent from the Figma but required by the document.
 
-## Supabase
+## Backend integration
 
-Authentication is wired to **Supabase Auth**, and the full database schema
-lives in `supabase/migrations/`.
+The Milestone 2 modules — **Projects, Resources, Inventory, Workforce** — are
+wired to the FastAPI backend and render live data:
 
-Environment (`.env.local`, git-ignored — see `.env.example`):
+- `src/services/apiClient.ts` — `request()` performs JWT-authenticated calls
+  against `/api/v1` (proxied to FastAPI in dev).
+- `src/services/authService.ts` — login / register / session use the backend's
+  `/auth` endpoints; the token is stored in `localStorage` and attached to
+  every request.
+- `src/services/mappers.ts` — adapts backend rows (snake_case, integer ids,
+  thin enums) to the frontend view types (camelCase, rich unions).
+- `src/services/index.ts` — `projectService`, `resourceService`,
+  `inventoryService` and `workforceService` call the API, falling back to the
+  bundled fixtures only if the backend is unreachable.
 
-```
-VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-```
- initialises only when both vars
-are present; without them the app falls back to bundled mock data, so it still
-runs on a fresh checkout. **Vite reads env vars at startup — restart the dev
-server after changing `.env.local`.**
+The pages fetch through these services with `useAsyncData` (loading/error
+states). Later-milestone modules (site progress, procurement, analytics,
+reports, budget, notifications) still serve bundled data until their backend
+endpoints are consumed.
 
-### Auth
-
-`src/services/authService.ts` uses Supabase Auth for sign-in, registration
-(`signUp` with role in the metadata), password reset and session restore.
-`useAuth` keeps the session in sync via `onAuthStateChange`. The six demo
-accounts above are seeded into Supabase Auth (migration `0004`), so they log
-in against the real backend; role and profile come from the `profiles` table.
-
-### Database schema (migrations)
-
-| Migration | Contents |
-| --------- | -------- |
-| `0001_auth_profiles_and_roles` | `profiles` table, `user_role`/`account_status` enums, `handle_new_user` trigger, `is_admin` / `can_manage` / `current_user_role` helpers, profile RLS |
-| `0002_core_domain_tables` | 16 domain tables + enums for modules 2–11, `updated_at` triggers, indexes |
-| `0003_row_level_security` | RLS on every table — read for all authenticated staff, writes gated by `can_manage()`; notifications private to recipient |
-| `0004_seed_demo_users` | Six confirmed demo accounts (one per role) |
-| `0005_harden_functions` | Pins search_path, revokes public/anon `EXECUTE` on SECURITY DEFINER functions |
-| `0006_fix_seed_user_tokens` | Backfills `auth.users` token columns for the seeded rows |
-
-Migrations were applied to the Supabase project via the Supabase MCP. To apply
-elsewhere, run them in order through the SQL editor or `supabase db push`.
-
-**Recommended (dashboard-only) hardening:** enable *Leaked Password Protection*
-under Auth → Providers, which cannot be toggled from SQL.
-
-### Data layer
-
-Auth is fully on Supabase. The module data services (`projectService`,
-`resourceService`, …) still return the bundled mock fixtures — the Postgres
-tables now exist to back them, so each service can be pointed at
-`supabase.from('<table>')` when you want live data. Set `VITE_API_BASE_URL`
-instead if you route those through a separate FastAPI backend.
+Supabase has been removed from this project; the backend owns auth and data.

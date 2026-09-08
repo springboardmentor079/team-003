@@ -1,88 +1,100 @@
-import { DEMO_PASSWORD, users } from '../data/users';
+/**
+ * Authentication against the BuildTrack FastAPI backend (document module 1).
+ *
+ * Login/register/session all use the real JWT endpoints under
+ * `/api/v1/auth`. The signed-in profile comes from `GET /auth/me`; the token
+ * is held in localStorage so `apiClient.request` attaches it to every call.
+ */
 import type {
   AuthSession,
   LoginCredentials,
   RegistrationDetails,
   User,
 } from '../types';
-import { initialsOf } from '../utils/format';
-import { mockError, mockResponse } from './apiClient';
+import { ApiError, request, TOKEN_KEY } from './apiClient';
+import { mapUser, roleToBackend, type BackendUser } from './mappers';
 
 const SESSION_KEY = 'buildtrack.session';
-const TOKEN_KEY = 'buildtrack.token';
 
-function issueMockToken(user: User): string {
-  return `mock-jwt.${btoa(user.id)}.${Date.now()}`;
+interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  role: string;
+  user_id: number;
+  full_name: string;
 }
 
-/* ------------------------------------------------------------------ */
-/* Clean Mock Implementation                                          */
-/* ------------------------------------------------------------------ */
+/** Fetches the signed-in profile using the currently stored token. */
+async function fetchCurrentUser(): Promise<User> {
+  const profile = await request<BackendUser>('/auth/me');
+  return mapUser(profile);
+}
 
-const mockAuth = {
+export const authService = {
+  /** Auth now runs against the FastAPI backend rather than Supabase. */
+  isSupabase: false,
+
   async login({ email, password }: LoginCredentials): Promise<AuthSession> {
-    const user = users.find(
-      (candidate) => candidate.email.toLowerCase() === email.trim().toLowerCase(),
-    );
+    const token = await request<TokenResponse>('/auth/login/json', {
+      method: 'POST',
+      auth: false,
+      body: { email: email.trim(), password },
+    });
 
-    if (!user || password !== DEMO_PASSWORD) {
-      return mockError<AuthSession>('Invalid email address or password.', 401);
-    }
-    if (user.status !== 'Active') {
-      return mockError<AuthSession>(
-        'This account is not active. Contact your administrator.',
-        403,
-      );
-    }
+    // Store the token first so the /auth/me call is authenticated.
+    localStorage.setItem(TOKEN_KEY, token.access_token);
+    const user = await fetchCurrentUser();
 
-    return mockResponse({ user, token: issueMockToken(user) });
+    return { user, token: token.access_token };
   },
 
   async register(details: RegistrationDetails): Promise<AuthSession> {
-    const exists = users.some(
-      (candidate) => candidate.email.toLowerCase() === details.email.trim().toLowerCase(),
-    );
-    if (exists) {
-      return mockError<AuthSession>('An account with this email already exists.', 409);
-    }
+    await request<BackendUser>('/auth/register', {
+      method: 'POST',
+      auth: false,
+      body: {
+        email: details.email.trim(),
+        password: details.password,
+        full_name: details.fullName.trim(),
+        phone: details.phone.trim(),
+        role: roleToBackend(details.role),
+      },
+    });
 
-    const user: User = {
-      id: `u-${Date.now()}`,
-      fullName: details.fullName.trim(),
-      email: details.email.trim().toLowerCase(),
-      phone: details.phone.trim(),
-      role: details.role,
-      employeeId: `BT-NEW-${String(users.length + 1).padStart(3, '0')}`,
-      department: 'Pending assignment',
-      status: 'Active',
-      lastLogin: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      initials: initialsOf(details.fullName),
-    };
-
-    return mockResponse({ user, token: issueMockToken(user) });
-  },
-
-  async requestPasswordReset(email: string): Promise<{ message: string }> {
-    const exists = users.some(
-      (candidate) => candidate.email.toLowerCase() === email.trim().toLowerCase(),
-    );
-    if (!exists) {
-      return mockError<{ message: string }>(
-        'No BuildTrack account is registered with that email address.',
-        404,
-      );
-    }
-    return mockResponse({
-      message: `Password reset instructions have been sent to ${email.trim()}.`,
+    // The register endpoint returns the profile but no token, so sign in.
+    return this.login({
+      email: details.email,
+      password: details.password,
+      rememberMe: false,
     });
   },
 
+  /**
+   * The backend's reset endpoint expects a new password, which this screen
+   * does not collect, so the request is acknowledged client-side. Wiring the
+   * full reset flow is outside Milestone 2 (project/resource/workforce).
+   */
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    return {
+      message: `If an account exists for ${email.trim()}, reset instructions have been sent.`,
+    };
+  },
+
   async getSession(): Promise<AuthSession | null> {
-    const raw =
-      localStorage.getItem(SESSION_KEY) ?? sessionStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
+    const token = localStorage.getItem(TOKEN_KEY);
+    const raw = localStorage.getItem(SESSION_KEY) ?? sessionStorage.getItem(SESSION_KEY);
+    if (!token || !raw) return null;
+
+    // Trust the cached profile for instant restore, then revalidate the token
+    // against the backend; a rejected token clears the stale session.
     try {
-      return JSON.parse(raw) as AuthSession;
+      const cached = JSON.parse(raw) as AuthSession;
+      void fetchCurrentUser().catch((error: unknown) => {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          this.logout();
+        }
+      });
+      return cached;
     } catch {
       return null;
     }
@@ -94,42 +106,21 @@ const mockAuth = {
     localStorage.removeItem(TOKEN_KEY);
   },
 
-  onAuthStateChange(): () => void {
-    // Mock sessions never change out from under us locally
+  /** Kept for API compatibility with the auth provider; backend has no push. */
+  onAuthStateChange(_callback: (session: AuthSession | null) => void): () => void {
+    void _callback;
     return () => undefined;
   },
 
   async listUsers(): Promise<User[]> {
-    return mockResponse(users);
+    const rows = await request<BackendUser[]>('/auth/users');
+    return rows.map(mapUser);
   },
 
-  /** Persist a mock session */
   persist(session: AuthSession, remember: boolean): void {
     const store = remember ? localStorage : sessionStorage;
     store.setItem(SESSION_KEY, JSON.stringify(session));
     localStorage.setItem(TOKEN_KEY, session.token);
-  },
-};
-
-/* ------------------------------------------------------------------ */
-/* Public surface                                                      */
-/* ------------------------------------------------------------------ */
-
-export const authService = {
-  // Always false now since Supabase frontend functionality is removed
-  isSupabase: false,
-
-  login: mockAuth.login,
-  register: mockAuth.register,
-  requestPasswordReset: mockAuth.requestPasswordReset,
-  getSession: mockAuth.getSession,
-  logout: mockAuth.logout,
-  onAuthStateChange: mockAuth.onAuthStateChange,
-  listUsers: mockAuth.listUsers,
-
-  /** Mock session persistence */
-  persist(session: AuthSession, remember: boolean): void {
-    mockAuth.persist(session, remember);
   },
 };
 

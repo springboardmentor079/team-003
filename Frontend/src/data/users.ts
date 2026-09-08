@@ -1,4 +1,4 @@
-import type { User } from '../types';
+import type { User, UserRole } from '../types';
 
 /**
  * Demo accounts covering all six roles from the document. The Figma login
@@ -103,5 +103,24 @@ export const users: User[] = [
   },
 ];
 
-/** Password accepted for every demo account (frontend-only mock auth). */
+/** Password accepted for every demo account when running on mock auth only. */
 export const DEMO_PASSWORD = 'buildtrack123';
+
+/**
+ * Demo sign-in accounts. Credentials match the FastAPI backend seed
+ * (`backend/app/seed.py`), so these log in against the real API.
+ */
+export interface DemoAccount {
+  role: UserRole;
+  email: string;
+  password: string;
+}
+
+export const DEMO_ACCOUNTS: DemoAccount[] = [
+  { role: 'Administrator', email: 'admin@buildtrack.com', password: 'admin123' },
+  { role: 'Project Manager', email: 'manager@buildtrack.com', password: 'manager123' },
+  { role: 'Site Engineer', email: 'engineer@buildtrack.com', password: 'engineer123' },
+  { role: 'Contractor', email: 'contractor@buildtrack.com', password: 'contractor123' },
+  { role: 'Worker', email: 'worker@buildtrack.com', password: 'worker123' },
+  { role: 'Client', email: 'client@buildtrack.com', password: 'client123' },
+];
