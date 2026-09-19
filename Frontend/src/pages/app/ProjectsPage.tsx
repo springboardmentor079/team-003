@@ -2,14 +2,20 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect } from 'react';
 
 import { FilterPanel } from '../../components/common/FilterPanel';
-import { PageHeader, SectionCard } from '../../components/common/PageHeader';
+import {
+  LoadingState,
+  PageHeader,
+  SectionCard,
+  StateMessage,
+} from '../../components/common/PageHeader';
 import { Pagination } from '../../components/common/Pagination';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { SearchBar } from '../../components/common/SearchBar';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { DataTable } from '../../components/tables/DataTable';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { useTableControls } from '../../hooks/useTableControls';
-import { projects } from '../../data/projects';
+import { projectService } from '../../services';
 import {
   PROJECT_CATEGORIES,
   PROJECT_STATUSES,
@@ -52,8 +58,10 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const { data: projects, loading, error } = useAsyncData(() => projectService.list(), []);
+
   const controls = useTableControls<Project>({
-    rows: projects,
+    rows: projects ?? [],
     searchKeys: ['name', 'code', 'client', 'location', 'projectManager'],
     filterKeys: FILTER_KEYS,
     initialSortKey: 'name',
@@ -179,28 +187,40 @@ export function ProjectsPage() {
           </>
         }
       >
-        <DataTable
-          columns={columns}
-          rows={controls.pageRows}
-          rowKey={(row) => row.id}
-          sortKey={controls.sortKey}
-          sortDirection={controls.sortDirection}
-          onSort={controls.toggleSort}
-          onRowClick={(row) => navigate(`/app/projects/${row.code}`)}
-          caption="Construction projects with status, progress and budget"
-        />
+        {loading ? (
+          <LoadingState label="Loading projects…" />
+        ) : error ? (
+          <StateMessage
+            icon="bi-exclamation-triangle"
+            title="Couldn't load projects"
+            message={error}
+          />
+        ) : (
+          <>
+            <DataTable
+              columns={columns}
+              rows={controls.pageRows}
+              rowKey={(row) => row.id}
+              sortKey={controls.sortKey}
+              sortDirection={controls.sortDirection}
+              onSort={controls.toggleSort}
+              onRowClick={(row) => navigate(`/app/projects/${row.code}`)}
+              caption="Construction projects with status, progress and budget"
+            />
 
-        <hr className="bt-divider m-0" />
+            <hr className="bt-divider m-0" />
 
-        <Pagination
-          page={controls.page}
-          pageCount={controls.pageCount}
-          rangeStart={controls.rangeStart}
-          rangeEnd={controls.rangeEnd}
-          total={controls.total}
-          itemLabel="Projects"
-          onPageChange={controls.setPage}
-        />
+            <Pagination
+              page={controls.page}
+              pageCount={controls.pageCount}
+              rangeStart={controls.rangeStart}
+              rangeEnd={controls.rangeEnd}
+              total={controls.total}
+              itemLabel="Projects"
+              onPageChange={controls.setPage}
+            />
+          </>
+        )}
       </SectionCard>
     </>
   );

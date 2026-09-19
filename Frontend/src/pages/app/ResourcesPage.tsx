@@ -4,7 +4,12 @@ import { BarChart } from '../../components/charts/BarChart';
 import { chartColors } from '../../components/charts/chartTheme';
 import { FilterPanel } from '../../components/common/FilterPanel';
 import { Modal } from '../../components/common/Modal';
-import { PageHeader, SectionCard } from '../../components/common/PageHeader';
+import {
+  LoadingState,
+  PageHeader,
+  SectionCard,
+  StateMessage,
+} from '../../components/common/PageHeader';
 import { Pagination } from '../../components/common/Pagination';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { SearchBar } from '../../components/common/SearchBar';
@@ -14,12 +19,10 @@ import { ChartCard } from '../../components/dashboard/ChartCard';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { FormField } from '../../components/forms/FormField';
 import { DataTable } from '../../components/tables/DataTable';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { useTableControls } from '../../hooks/useTableControls';
-import {
-  maintenanceSchedule,
-  resourceUtilisation,
-  resources,
-} from '../../data/resources';
+import { resourceService } from '../../services';
+import { maintenanceSchedule, resourceUtilisation } from '../../data/resources';
 import { totalWorkforce } from '../../data/workforce';
 import {
   RESOURCE_CATEGORIES,
@@ -38,44 +41,52 @@ import { isValid, requiredField, type FieldErrors } from '../../utils/validation
  * third card reports maintenance instead, which the Figma omitted despite
  * being a listed feature (module 4, feature v).
  */
-const KPIS: KpiMetric[] = [
-  {
-    id: 'res-utilisation',
-    label: 'Equipment Utilization',
-    value: '84',
-    unit: '%',
-    caption: `${resources.filter((r) => r.status === 'Allocated').length} of ${resources.length} assets allocated`,
-    delta: '+4.2%',
-    trend: 'up',
-    progress: 84,
-    accent: 'green',
-    icon: 'bi-truck-front',
-  },
-  {
-    id: 'res-availability',
-    label: 'Available Assets',
-    value: String(resources.filter((r) => r.status === 'Available').length),
-    unit: 'units',
-    caption: 'Ready for allocation across all sites',
-    delta: 'Target: 5',
-    trend: 'flat',
-    progress: 72,
-    accent: 'accent',
-    icon: 'bi-box-arrow-in-down',
-  },
-  {
-    id: 'res-workforce',
-    label: 'Active Workforce',
-    value: formatNumber(totalWorkforce),
-    unit: 'personnel',
-    caption: 'Deployed across all active projects',
-    delta: '+12',
-    trend: 'up',
-    progress: 92,
-    accent: 'accent',
-    icon: 'bi-people',
-  },
-];
+/** KPI cards computed from the live resource list (module 4, features i–iv). */
+function buildKpis(rows: Resource[]): KpiMetric[] {
+  const total = rows.length;
+  const allocated = rows.filter((r) => r.status === 'Allocated').length;
+  const available = rows.filter((r) => r.status === 'Available').length;
+  const utilisation = total > 0 ? Math.round((allocated / total) * 100) : 0;
+
+  return [
+    {
+      id: 'res-utilisation',
+      label: 'Equipment Utilization',
+      value: String(utilisation),
+      unit: '%',
+      caption: `${allocated} of ${total} assets allocated`,
+      delta: 'Live',
+      trend: 'up',
+      progress: utilisation,
+      accent: 'green',
+      icon: 'bi-truck-front',
+    },
+    {
+      id: 'res-availability',
+      label: 'Available Assets',
+      value: String(available),
+      unit: 'units',
+      caption: 'Ready for allocation across all sites',
+      delta: `${total} total`,
+      trend: 'flat',
+      progress: total > 0 ? Math.round((available / total) * 100) : 0,
+      accent: 'accent',
+      icon: 'bi-box-arrow-in-down',
+    },
+    {
+      id: 'res-workforce',
+      label: 'Active Workforce',
+      value: formatNumber(totalWorkforce),
+      unit: 'personnel',
+      caption: 'Deployed across all active projects',
+      delta: '+12',
+      trend: 'up',
+      progress: 92,
+      accent: 'accent',
+      icon: 'bi-people',
+    },
+  ];
+}
 
 const FILTERS: FilterDefinition[] = [
   {
@@ -129,8 +140,14 @@ export function ResourcesPage() {
   const [values, setValues] = useState<ResourceFormValues>(EMPTY_RESOURCE);
   const [errors, setErrors] = useState<FieldErrors<ResourceFormValues>>({});
 
+  const { data: resources, loading, error } = useAsyncData(
+    () => resourceService.list(),
+    [],
+  );
+  const kpis = buildKpis(resources ?? []);
+
   const controls = useTableControls<Resource>({
-    rows: resources,
+    rows: resources ?? [],
     searchKeys: ['assetId', 'name', 'category', 'allocatedProject', 'operator'],
     filterKeys: FILTER_KEYS,
     initialSortKey: 'assetId',
@@ -254,7 +271,7 @@ export function ResourcesPage() {
       />
 
       <div className="row g-3 g-lg-4 mb-4">
-        {KPIS.map((metric) => (
+        {kpis.map((metric) => (
           <div className="col-12 col-md-4" key={metric.id}>
             <StatCard metric={metric} />
           </div>
@@ -285,27 +302,39 @@ export function ResourcesPage() {
           </>
         }
       >
-        <DataTable
-          columns={columns}
-          rows={controls.pageRows}
-          rowKey={(row) => row.id}
-          sortKey={controls.sortKey}
-          sortDirection={controls.sortDirection}
-          onSort={controls.toggleSort}
-          caption="Equipment and machinery register with status and condition"
-        />
+        {loading ? (
+          <LoadingState label="Loading assets…" />
+        ) : error ? (
+          <StateMessage
+            icon="bi-exclamation-triangle"
+            title="Couldn't load resources"
+            message={error}
+          />
+        ) : (
+          <>
+            <DataTable
+              columns={columns}
+              rows={controls.pageRows}
+              rowKey={(row) => row.id}
+              sortKey={controls.sortKey}
+              sortDirection={controls.sortDirection}
+              onSort={controls.toggleSort}
+              caption="Equipment and machinery register with status and condition"
+            />
 
-        <hr className="bt-divider m-0" />
+            <hr className="bt-divider m-0" />
 
-        <Pagination
-          page={controls.page}
-          pageCount={controls.pageCount}
-          rangeStart={controls.rangeStart}
-          rangeEnd={controls.rangeEnd}
-          total={controls.total}
-          itemLabel="Assets"
-          onPageChange={controls.setPage}
-        />
+            <Pagination
+              page={controls.page}
+              pageCount={controls.pageCount}
+              rangeStart={controls.rangeStart}
+              rangeEnd={controls.rangeEnd}
+              total={controls.total}
+              itemLabel="Assets"
+              onPageChange={controls.setPage}
+            />
+          </>
+        )}
       </SectionCard>
 
       <div className="row g-3 g-lg-4">

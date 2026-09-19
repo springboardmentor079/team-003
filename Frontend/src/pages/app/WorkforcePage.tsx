@@ -6,7 +6,12 @@ import { LineChart } from '../../components/charts/LineChart';
 import { categoricalPalette, chartColors } from '../../components/charts/chartTheme';
 import { FilterPanel } from '../../components/common/FilterPanel';
 import { Modal } from '../../components/common/Modal';
-import { PageHeader, SectionCard } from '../../components/common/PageHeader';
+import {
+  LoadingState,
+  PageHeader,
+  SectionCard,
+  StateMessage,
+} from '../../components/common/PageHeader';
 import { Pagination } from '../../components/common/Pagination';
 import { ProgressBar } from '../../components/common/ProgressBar';
 import { SearchBar } from '../../components/common/SearchBar';
@@ -16,14 +21,14 @@ import { ChartCard } from '../../components/dashboard/ChartCard';
 import { StatCard } from '../../components/dashboard/StatCard';
 import { FormField } from '../../components/forms/FormField';
 import { DataTable } from '../../components/tables/DataTable';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { useTableControls } from '../../hooks/useTableControls';
+import { workforceService } from '../../services';
 import { projects } from '../../data/projects';
 import {
-  attendanceRecords,
   attendanceTrend,
   shiftCoverage,
   totalWorkforce,
-  workers,
   workforceDistribution,
 } from '../../data/workforce';
 import {
@@ -47,61 +52,63 @@ import {
 const TABS = ['Worker register', 'Attendance'] as const;
 type Tab = (typeof TABS)[number];
 
-const presentToday = attendanceRecords.filter(
-  (record) => record.status === 'Present',
-).length;
+/** KPI cards computed from the live worker + attendance lists (module 6). */
+function buildKpis(workers: Worker[], attendance: AttendanceRecord[]): KpiMetric[] {
+  const present = attendance.filter((record) => record.status === 'Present').length;
+  const attendancePct =
+    attendance.length > 0 ? Math.round((present / attendance.length) * 100) : 0;
+  const wageBill = workers.reduce((sum, worker) => sum + worker.dailyWage, 0);
 
-const KPIS: KpiMetric[] = [
-  {
-    id: 'wf-total',
-    label: 'Total Workforce',
-    value: formatNumber(totalWorkforce),
-    unit: 'personnel',
-    caption: 'Across all six workforce categories',
-    delta: '+12 this week',
-    trend: 'up',
-    progress: 88,
-    accent: 'accent',
-    icon: 'bi-people',
-  },
-  {
-    id: 'wf-present',
-    label: 'Present Today',
-    value: String(presentToday),
-    unit: `of ${attendanceRecords.length}`,
-    caption: 'Checked in across all shifts',
-    delta: `${Math.round((presentToday / attendanceRecords.length) * 100)}% attendance`,
-    trend: 'flat',
-    progress: Math.round((presentToday / attendanceRecords.length) * 100),
-    accent: 'green',
-    icon: 'bi-person-check',
-  },
-  {
-    id: 'wf-shifts',
-    label: 'Shift Coverage',
-    value: '3',
-    unit: 'shifts',
-    caption: 'Morning, Afternoon and Night rosters active',
-    delta: 'Fully covered',
-    trend: 'flat',
-    progress: 100,
-    accent: 'blue',
-    icon: 'bi-clock-history',
-  },
-  {
-    id: 'wf-payroll',
-    label: 'Daily Wage Bill',
-    value: formatCurrency(
-      workers.reduce((sum, worker) => sum + worker.dailyWage, 0),
-    ),
-    caption: 'Registered workers on the current roster',
-    delta: 'Per working day',
-    trend: 'flat',
-    progress: 64,
-    accent: 'amber',
-    icon: 'bi-cash-coin',
-  },
-];
+  return [
+    {
+      id: 'wf-total',
+      label: 'Total Workforce',
+      value: String(workers.length),
+      unit: 'personnel',
+      caption: 'Registered on the current roster',
+      delta: 'Live',
+      trend: 'up',
+      progress: 88,
+      accent: 'accent',
+      icon: 'bi-people',
+    },
+    {
+      id: 'wf-present',
+      label: 'Present Today',
+      value: String(present),
+      unit: `of ${attendance.length}`,
+      caption: 'Checked in across all shifts',
+      delta: `${attendancePct}% attendance`,
+      trend: 'flat',
+      progress: attendancePct,
+      accent: 'green',
+      icon: 'bi-person-check',
+    },
+    {
+      id: 'wf-shifts',
+      label: 'Shift Coverage',
+      value: '3',
+      unit: 'shifts',
+      caption: 'Morning, Afternoon and Night rosters active',
+      delta: 'Fully covered',
+      trend: 'flat',
+      progress: 100,
+      accent: 'blue',
+      icon: 'bi-clock-history',
+    },
+    {
+      id: 'wf-payroll',
+      label: 'Daily Wage Bill',
+      value: formatCurrency(wageBill),
+      caption: 'Registered workers on the current roster',
+      delta: 'Per working day',
+      trend: 'flat',
+      progress: 64,
+      accent: 'amber',
+      icon: 'bi-cash-coin',
+    },
+  ];
+}
 
 const WORKER_FILTERS: FilterDefinition[] = [
   {
@@ -177,6 +184,12 @@ export function WorkforcePage() {
   const [values, setValues] = useState<WorkerFormValues>(EMPTY_WORKER);
   const [errors, setErrors] = useState<FieldErrors<WorkerFormValues>>({});
 
+  const workersQuery = useAsyncData(() => workforceService.workers(), []);
+  const attendanceQuery = useAsyncData(() => workforceService.attendance(), []);
+  const workers = workersQuery.data ?? [];
+  const attendance = attendanceQuery.data ?? [];
+  const kpis = buildKpis(workers, attendance);
+
   const workerControls = useTableControls<Worker>({
     rows: workers,
     searchKeys: ['fullName', 'workerCode', 'trade', 'assignedProject'],
@@ -190,12 +203,17 @@ export function WorkforcePage() {
   });
 
   const attendanceControls = useTableControls<AttendanceRecord>({
-    rows: attendanceRecords,
+    rows: attendance,
     searchKeys: ['workerName', 'workerCode', 'project'],
     filterKeys: { category: 'category', shift: 'shift', status: 'status' },
     initialSortKey: 'workerName',
     pageSize: 8,
   });
+
+  const activeLoading =
+    tab === 'Worker register' ? workersQuery.loading : attendanceQuery.loading;
+  const activeError =
+    tab === 'Worker register' ? workersQuery.error : attendanceQuery.error;
 
   function setField(field: keyof WorkerFormValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -343,7 +361,7 @@ export function WorkforcePage() {
       />
 
       <div className="row g-3 g-lg-4 mb-4">
-        {KPIS.map((metric) => (
+        {kpis.map((metric) => (
           <div className="col-12 col-sm-6 col-xl-3" key={metric.id}>
             <StatCard metric={metric} />
           </div>
@@ -453,39 +471,51 @@ export function WorkforcePage() {
           </>
         }
       >
-        {tab === 'Worker register' ? (
-          <DataTable
-            columns={workerColumns}
-            rows={workerControls.pageRows}
-            rowKey={(row) => row.id}
-            sortKey={workerControls.sortKey}
-            sortDirection={workerControls.sortDirection}
-            onSort={workerControls.toggleSort}
-            caption="Registered workers with allocation and attendance"
+        {activeLoading ? (
+          <LoadingState label={`Loading ${tab.toLowerCase()}…`} />
+        ) : activeError ? (
+          <StateMessage
+            icon="bi-exclamation-triangle"
+            title="Couldn't load workforce data"
+            message={activeError}
           />
         ) : (
-          <DataTable
-            columns={attendanceColumns}
-            rows={attendanceControls.pageRows}
-            rowKey={(row) => row.id}
-            sortKey={attendanceControls.sortKey}
-            sortDirection={attendanceControls.sortDirection}
-            onSort={attendanceControls.toggleSort}
-            caption="Daily attendance register"
-          />
+          <>
+            {tab === 'Worker register' ? (
+              <DataTable
+                columns={workerColumns}
+                rows={workerControls.pageRows}
+                rowKey={(row) => row.id}
+                sortKey={workerControls.sortKey}
+                sortDirection={workerControls.sortDirection}
+                onSort={workerControls.toggleSort}
+                caption="Registered workers with allocation and attendance"
+              />
+            ) : (
+              <DataTable
+                columns={attendanceColumns}
+                rows={attendanceControls.pageRows}
+                rowKey={(row) => row.id}
+                sortKey={attendanceControls.sortKey}
+                sortDirection={attendanceControls.sortDirection}
+                onSort={attendanceControls.toggleSort}
+                caption="Daily attendance register"
+              />
+            )}
+
+            <hr className="bt-divider m-0" />
+
+            <Pagination
+              page={activeControls.page}
+              pageCount={activeControls.pageCount}
+              rangeStart={activeControls.rangeStart}
+              rangeEnd={activeControls.rangeEnd}
+              total={activeControls.total}
+              itemLabel={tab === 'Worker register' ? 'Workers' : 'Records'}
+              onPageChange={activeControls.setPage}
+            />
+          </>
         )}
-
-        <hr className="bt-divider m-0" />
-
-        <Pagination
-          page={activeControls.page}
-          pageCount={activeControls.pageCount}
-          rangeStart={activeControls.rangeStart}
-          rangeEnd={activeControls.rangeEnd}
-          total={activeControls.total}
-          itemLabel={tab === 'Worker register' ? 'Workers' : 'Records'}
-          onPageChange={activeControls.setPage}
-        />
       </SectionCard>
 
       <Modal

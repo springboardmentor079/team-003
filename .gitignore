@@ -11,6 +11,12 @@
 **/.env.local
 **/.env.*.local
 
+# Python backend (virtualenv, bytecode, local SQLite database)
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.db
+
 # Agent / editor tooling (local only)
 .agents/
 **/.agents/
@@ -18,6 +24,8 @@
 .vscode/*
 !.vscode/extensions.json
 .idea/
+# Local design-tool plugin bundles (not part of the app)
+Frontend/public/plugins/
 
 # Logs
 **/*.log

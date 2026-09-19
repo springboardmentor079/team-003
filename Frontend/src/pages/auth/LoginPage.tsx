@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FormField } from '../../components/forms/FormField';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthLayout } from '../../layouts/AuthLayout';
-import { DEMO_PASSWORD, users } from '../../data/users';
+import { DEMO_ACCOUNTS } from '../../data/users';
 import {
   isValid,
   validateEmail,
@@ -69,8 +69,8 @@ export function LoginPage() {
     }
   }
 
-  function signInAs(email: string) {
-    setValues({ email, password: DEMO_PASSWORD });
+  function signInAs(email: string, password: string) {
+    setValues({ email, password });
     setErrors({});
     setFormError(null);
   }
@@ -166,7 +166,7 @@ export function LoginPage() {
           <button
             type="button"
             className="btn btn-outline-bt w-100 d-inline-flex align-items-center justify-content-center gap-2"
-            onClick={() => signInAs('manager@buildtrack.com')}
+            onClick={() => signInAs('manager@buildtrack.com', 'manager123')}
           >
             <i className="bi bi-google" aria-hidden="true" />
             Continue with Google
@@ -188,22 +188,19 @@ export function LoginPage() {
 
       {/* Role switcher so every role from the document can be reviewed. */}
       <div className="bt-card p-3" style={{ height: 'auto' }}>
-        <p className="bt-label mb-2">Demo accounts — password: {DEMO_PASSWORD}</p>
+        <p className="bt-label mb-2">Demo accounts — click a role to autofill</p>
         <div className="d-flex flex-wrap gap-2">
-          {users
-            .filter((user) => user.status === 'Active')
-            .slice(0, 6)
-            .map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                className="bt-pill-tab"
-                style={{ padding: '0.3rem 0.7rem', fontSize: '0.65rem' }}
-                onClick={() => signInAs(user.email)}
-              >
-                {user.role}
-              </button>
-            ))}
+          {DEMO_ACCOUNTS.map((account) => (
+            <button
+              key={account.email}
+              type="button"
+              className="bt-pill-tab"
+              style={{ padding: '0.3rem 0.7rem', fontSize: '0.65rem' }}
+              onClick={() => signInAs(account.email, account.password)}
+            >
+              {account.role}
+            </button>
+          ))}
         </div>
       </div>
     </AuthLayout>
