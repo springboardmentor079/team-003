@@ -12,6 +12,8 @@ const SEVERITY_COLOR: Record<ActivitySeverity, string> = {
 
 interface NotificationPanelProps {
   notifications: NotificationItem[];
+  unreadCount: number;
+  onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onClose: () => void;
 }
@@ -22,11 +24,11 @@ interface NotificationPanelProps {
  */
 export function NotificationPanel({
   notifications,
+  unreadCount,
+  onMarkRead,
   onMarkAllRead,
   onClose,
 }: NotificationPanelProps) {
-  const unreadCount = notifications.filter((item) => !item.read).length;
-
   return (
     <div
       className="dropdown-menu show p-0"
@@ -63,6 +65,9 @@ export function NotificationPanel({
         className="list-unstyled mb-0 overflow-auto"
         style={{ maxHeight: '340px' }}
       >
+        {notifications.length === 0 && (
+          <li className="p-4 text-center bt-text-muted small">No notifications yet.</li>
+        )}
         {notifications.slice(0, 6).map((item) => (
           <li
             key={item.id}
@@ -85,13 +90,17 @@ export function NotificationPanel({
                 aria-hidden="true"
               />
 
-              <div className="min-w-0">
+              <button
+                type="button"
+                className="btn btn-ghost text-start p-0 min-w-0 flex-grow-1"
+                onClick={() => { if (!item.read) onMarkRead(item.id); }}
+              >
                 <p className="bt-label mb-1">{item.type}</p>
                 <p className="mb-1 fw-semibold" style={{ fontSize: '0.85rem' }}>
                   {item.title}
                 </p>
                 <p className="bt-text-muted small mb-0">{formatRelative(item.timestamp)}</p>
-              </div>
+              </button>
             </div>
           </li>
         ))}

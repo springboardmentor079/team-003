@@ -1,19 +1,16 @@
 import datetime
 from sqlalchemy.orm import Session
-from app.database import SessionLocal, engine, Base
+from app.database import SessionLocal
 from app.models.user import User, UserRole
 from app.models.project import Project, ProjectMilestone, ProjectStatus, MilestoneStatus
 from app.models.resource import Resource, ResourceType, ResourceStatus
 from app.models.inventory import Inventory
 from app.models.workforce import Worker, Attendance, AttendanceStatus
 from app.models.procurement import Procurement, ProcurementStatus
-from app.models.notification_report import Notification, Report, Document
+from app.models.notification_report import Notification, NotificationType, Report
 from app.utils.security import get_password_hash
 
 def seed_database():
-    # Ensure tables are created
-    Base.metadata.create_all(bind=engine)
-
     db: Session = SessionLocal()
     try:
         # Check if users exist
@@ -295,13 +292,13 @@ def seed_database():
             user_id=manager.id,
             title="Low Stock Warning: TMT Steel Rebars",
             message="Material 'TMT Steel Rebars (16mm)' quantity (12.5 Tons) is below minimum threshold (15.0 Tons).",
-            type="warning"
+            type=NotificationType.SYSTEM.value
         )
         n2 = Notification(
             user_id=client.id,
             title="Milestone Completed",
             message="Milestone 'Site Excavation & Deep Foundation Piling' marked completed for Skyline Commercial Tower.",
-            type="info"
+            type=NotificationType.PROJECT.value
         )
 
         db.add_all([n1, n2])
@@ -320,15 +317,7 @@ def seed_database():
             }
         )
 
-        doc1 = Document(
-            project_id=proj1.id,
-            title="Approved Structural Architectural Blueprints Rev 4.2",
-            category="Blueprint",
-            file_path="/uploads/documents/skyline_blueprints_v4.pdf",
-            uploaded_by=engineer.full_name
-        )
-
-        db.add_all([r_doc, doc1])
+        db.add(r_doc)
         db.commit()
 
         print("Database seeded successfully with initial test data!")

@@ -19,8 +19,8 @@ from app.schemas.procurement import (
     ProcurementCreate, ProcurementUpdate, ProcurementResponse
 )
 from app.schemas.analytics import (
-    NotificationCreate, NotificationResponse,
     ReportCreate, ReportResponse,
     DocumentCreate, DocumentResponse,
     ProjectAnalyticsSummary
 )
+from app.schemas.notification import NotificationCreate, NotificationResponse, UnreadCountResponse

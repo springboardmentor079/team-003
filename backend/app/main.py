@@ -2,16 +2,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import engine, Base
 from app.seed import seed_database
 
 # Routers
 from app.routers import (
-    auth, projects, resources, inventory, workforce, procurement, notifications, analytics, reports
+    auth, projects, resources, inventory, workforce, procurement, notifications, analytics, reports, documents
 )
-
-# Initialize database tables
-Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,6 +43,7 @@ app.include_router(procurement.router, prefix=settings.API_V1_STR)
 app.include_router(notifications.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
+app.include_router(documents.router, prefix=settings.API_V1_STR)
 
 @app.get("/", tags=["Health Check"])
 def root():

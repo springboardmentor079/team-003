@@ -41,12 +41,20 @@ To run with **PostgreSQL**, simply update `.env` or set the environment variable
 DATABASE_URL=postgresql://username:password@localhost:5432/buildtrack_db
 ```
 
-### 4. Run Seeder (Optional - Auto-runs on Startup)
+### 4. Apply Database Migrations
+
+Run from the `backend` directory after activating the virtual environment. The migration creates only missing schema and preserves existing project data.
+
+```powershell
+python -m alembic upgrade head
+```
+
+### 5. Run Seeder (Optional - Auto-runs on Startup)
 ```powershell
 python -m app.seed
 ```
 
-### 5. Start the FastAPI Development Server
+### 6. Start the FastAPI Development Server
 ```powershell
 uvicorn app.main:app --reload --port 8000
 ```
@@ -83,7 +91,15 @@ The database seeder generates test accounts for all system roles out of the box:
 | **Procurement** | `/api/v1/procurement` | Purchase requests, status approval workflow (`/status`), supplier tracking |
 | **Notifications** | `/api/v1/notifications` | User notifications, unread filter, mark as read endpoints |
 | **Analytics** | `/api/v1/analytics` | Real-time project budget utilization, overall progress %, role-specific KPI dashboards |
-| **Reports & Docs** | `/api/v1/reports` | Report generation (`/generate`), JSON exports, document uploads (`/documents`) |
+| **Reports** | `/api/v1/reports` | Live reports, saved report generation, PDF and Excel exports |
+| **Documents** | `/api/v1/documents` | Authenticated project document upload, metadata, download, and deletion |
+| **Procurement extensions** | `/api/v1/procurement/vendors`, `/purchase-orders`, `/invoices` | Vendor, PO, and invoice records and lifecycle APIs |
+
+The report API generates project-scoped progress, budget, resource, workforce, procurement, and summary data. Export a saved report via `/api/v1/reports/{report_id}/export?format=pdf` or `format=xlsx`.
+
+Upload project files with multipart `POST /api/v1/documents` (20 MB maximum; PDF, DOC/DOCX, XLS/XLSX, CSV, PNG, or JPEG). List metadata with `GET /api/v1/documents?project_id={id}`, retrieve metadata at `GET /api/v1/documents/{id}`, download through the authenticated `/download` endpoint, and delete by document ID. API responses never expose storage paths.
+
+The local file store defaults to `backend/uploads/documents`; set `BUILDTRACK_UPLOAD_DIR` to use another managed location. Back up both that directory and the database.
 
 ---
 

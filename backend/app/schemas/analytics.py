@@ -2,23 +2,6 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-class NotificationCreate(BaseModel):
-    user_id: int
-    title: str
-    message: str
-    type: Optional[str] = "info"
-
-class NotificationResponse(BaseModel):
-    id: int
-    user_id: int
-    title: str
-    message: str
-    is_read: bool
-    type: str
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
 class ReportCreate(BaseModel):
     project_id: int
     title: str
@@ -50,8 +33,11 @@ class DocumentResponse(BaseModel):
     project_id: int
     title: str
     category: str
-    file_path: str
     uploaded_by: Optional[str] = None
+    uploaded_by_id: Optional[int] = None
+    original_filename: Optional[str] = None
+    content_type: Optional[str] = None
+    file_size: Optional[int] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

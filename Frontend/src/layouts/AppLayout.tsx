@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { Toast } from '../components/common/Toast';
@@ -6,8 +6,8 @@ import { NewProjectModal } from '../components/forms/NewProjectModal';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Topbar } from '../components/layout/Topbar';
 import { useAuth } from '../hooks/useAuth';
-import { notifications as seedNotifications } from '../data/notifications';
 import type { NotificationItem } from '../types';
+import { NOTIFICATION_CHANGED_EVENT, notificationService } from '../services/notificationService';
 
 /**
  * Authenticated application shell: fixed sidebar, sticky top bar and the
@@ -21,12 +21,36 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(seedNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const [recent, unread] = await Promise.all([
+        notificationService.list({ limit: 6 }),
+        notificationService.unreadCount(),
+      ]);
+      setNotifications(recent);
+      setUnreadCount(unread.unread_count);
+    } catch {
+      // Notification failures must not make the authenticated workspace unusable.
+    }
+  }, []);
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void refreshNotifications();
+  }, [isAuthenticated, refreshNotifications]);
+
+  useEffect(() => {
+    window.addEventListener(NOTIFICATION_CHANGED_EVENT, refreshNotifications);
+    return () => window.removeEventListener(NOTIFICATION_CHANGED_EVENT, refreshNotifications);
+  }, [refreshNotifications]);
 
   // Wait for the initial session lookup before deciding where to send the user,
   // otherwise a valid Supabase session would flash the login screen on reload.
@@ -74,9 +98,20 @@ export function AppLayout() {
         <Topbar
           onOpenSidebar={() => setSidebarOpen(true)}
           notifications={notifications}
-          onMarkAllRead={() =>
-            setNotifications((current) => current.map((item) => ({ ...item, read: true })))
-          }
+          unreadCount={unreadCount}
+          onNotificationsOpen={refreshNotifications}
+          onMarkRead={(id) => {
+            void notificationService.markAsRead(id).then((updated) => {
+              setNotifications((current) => current.map((item) => item.id === id ? updated : item));
+              setUnreadCount((current) => Math.max(0, current - 1));
+            });
+          }}
+          onMarkAllRead={() => {
+            void notificationService.markAllAsRead().then(() => {
+              setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+              setUnreadCount(0);
+            });
+          }}
         />
 
         <main className="bt-content" id="main-content">

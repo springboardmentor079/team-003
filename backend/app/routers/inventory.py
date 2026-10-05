@@ -5,9 +5,10 @@ from typing import List, Optional
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.inventory import Inventory
-from app.models.notification_report import Notification
+from app.models.notification_report import NotificationType
 from app.schemas.inventory import InventoryCreate, InventoryUpdate, InventoryResponse
 from app.utils.dependencies import get_current_user, require_roles
+from app.services.notifications import create_notification
 
 router = APIRouter(prefix="/inventory", tags=["Material Inventory & Stock Monitoring"])
 
@@ -39,19 +40,21 @@ def add_inventory_item(
 ):
     db_item = Inventory(**inventory_in.model_dump())
     db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
+    db.flush()
 
     # Check if created with low stock and raise alert notification
     if db_item.quantity <= db_item.min_threshold_quantity:
-        notif = Notification(
+        create_notification(
+            db,
             user_id=current_user.id,
             title=f"Low Stock Alert: {db_item.item_name}",
             message=f"Material '{db_item.item_name}' quantity ({db_item.quantity} {db_item.unit}) is below minimum threshold ({db_item.min_threshold_quantity} {db_item.unit}).",
-            type="warning"
+            notification_type=NotificationType.SYSTEM,
+            related_entity_type="inventory",
+            related_entity_id=db_item.id,
         )
-        db.add(notif)
-        db.commit()
+    db.commit()
+    db.refresh(db_item)
 
     return db_item
 
@@ -77,23 +80,24 @@ def update_inventory_item(
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
 
+    was_low_stock = item.quantity <= item.min_threshold_quantity
     update_data = inventory_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(item, field, value)
 
-    db.commit()
-    db.refresh(item)
-
     # Check for low stock threshold after update
-    if item.quantity <= item.min_threshold_quantity:
-        notif = Notification(
+    if not was_low_stock and item.quantity <= item.min_threshold_quantity:
+        create_notification(
+            db,
             user_id=current_user.id,
             title=f"Low Stock Alert: {item.item_name}",
             message=f"Material '{item.item_name}' quantity ({item.quantity} {item.unit}) is below minimum threshold ({item.min_threshold_quantity} {item.unit}).",
-            type="warning"
+            notification_type=NotificationType.SYSTEM,
+            related_entity_type="inventory",
+            related_entity_id=item.id,
         )
-        db.add(notif)
-        db.commit()
+    db.commit()
+    db.refresh(item)
 
     return item
 
