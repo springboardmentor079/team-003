@@ -50,7 +50,13 @@ export const primaryNav: NavItem[] = [
     icon: 'bi-graph-up-arrow',
     roles: ['Administrator', 'Project Manager', 'Client'],
   },
-  { label: 'Reports', to: '/app/reports', icon: 'bi-file-earmark-bar-graph' },
+  {
+    label: 'Reports',
+    to: '/app/reports',
+    icon: 'bi-file-earmark-bar-graph',
+    roles: ['Administrator', 'Project Manager', 'Site Engineer', 'Contractor', 'Client'],
+  },
+  { label: 'Documents', to: '/app/documents', icon: 'bi-folder2-open', roles: ['Administrator', 'Project Manager', 'Site Engineer', 'Contractor', 'Client'] },
   { label: 'Notifications', to: '/app/notifications', icon: 'bi-bell' },
 ];
 

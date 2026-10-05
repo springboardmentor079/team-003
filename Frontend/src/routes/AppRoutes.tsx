@@ -8,6 +8,7 @@ import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { AnalyticsPage } from '../pages/app/AnalyticsPage';
 import { BudgetPage } from '../pages/app/BudgetPage';
+import { DocumentsPage } from '../pages/app/DocumentsPage';
 import { InventoryPage } from '../pages/app/InventoryPage';
 import { NotificationsPage } from '../pages/app/NotificationsPage';
 import { OverviewPage } from '../pages/app/OverviewPage';
@@ -48,6 +49,7 @@ export function AppRoutes() {
         <Route path="budget" element={<BudgetPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="documents" element={<DocumentsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="settings" element={<SettingsPage />} />

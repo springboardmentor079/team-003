@@ -41,14 +41,37 @@ export function mockError<T>(message: string, status = 400): Promise<T> {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** JSON-serialisable body. */
   body?: unknown;
+  /** Multipart body. The browser supplies the boundary and Content-Type. */
+  formData?: FormData;
   /** Send as application/x-www-form-urlencoded (OAuth2 token endpoints). */
   form?: Record<string, string>;
   /** Attach the stored bearer token. Defaults to true. */
   auth?: boolean;
   signal?: AbortSignal;
+}
+
+export async function download(path: string): Promise<{ blob: Blob; filename: string | null }> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new ApiError('Cannot reach the BuildTrack server. Is the backend running?', 0);
+  }
+  if (!response.ok) {
+    const raw = await response.text();
+    let payload: unknown = null;
+    try { payload = raw ? JSON.parse(raw) : null; } catch { payload = null; }
+    throw new ApiError(readErrorDetail(payload, `Download failed (${response.status}).`), response.status);
+  }
+  const disposition = response.headers.get('Content-Disposition');
+  const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? null;
+  return { blob: await response.blob(), filename };
 }
 
 function readErrorDetail(payload: unknown, fallback: string): string {
@@ -66,14 +89,16 @@ function readErrorDetail(payload: unknown, fallback: string): string {
 
 /** Performs an authenticated JSON request against the FastAPI backend. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, form, auth = true, signal } = options;
+  const { method = 'GET', body, formData, form, auth = true, signal } = options;
   const token = auth ? localStorage.getItem(TOKEN_KEY) : null;
 
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let payload: BodyInit | undefined;
-  if (form) {
+  if (formData) {
+    payload = formData;
+  } else if (form) {
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
     payload = new URLSearchParams(form).toString();
   } else if (body !== undefined) {

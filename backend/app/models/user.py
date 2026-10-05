@@ -31,3 +31,4 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user")
     procurement_requests = relationship("Procurement", back_populates="requested_by")
     generated_reports = relationship("Report", back_populates="generated_by")
+    uploaded_documents = relationship("Document", back_populates="uploader")

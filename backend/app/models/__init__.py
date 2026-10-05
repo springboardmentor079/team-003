@@ -4,8 +4,8 @@ from app.models.project import Project, ProjectMilestone, ProjectStatus, Milesto
 from app.models.resource import Resource, ResourceType, ResourceStatus
 from app.models.inventory import Inventory
 from app.models.workforce import Worker, Attendance, AttendanceStatus
-from app.models.procurement import Procurement, ProcurementStatus
-from app.models.notification_report import Notification, Report, Document
+from app.models.procurement import Procurement, ProcurementStatus, Vendor, PurchaseOrder, Invoice
+from app.models.notification_report import Notification, NotificationType, Report, Document
 
 __all__ = [
     "Base",
@@ -14,6 +14,6 @@ __all__ = [
     "Resource", "ResourceType", "ResourceStatus",
     "Inventory",
     "Worker", "Attendance", "AttendanceStatus",
-    "Procurement", "ProcurementStatus",
-    "Notification", "Report", "Document"
+    "Procurement", "ProcurementStatus", "Vendor", "PurchaseOrder", "Invoice",
+    "Notification", "NotificationType", "Report", "Document"
 ]

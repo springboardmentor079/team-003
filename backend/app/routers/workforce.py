@@ -6,11 +6,14 @@ from datetime import date
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.workforce import Worker, Attendance
+from app.models.project import Project
+from app.models.notification_report import NotificationType
 from app.schemas.workforce import (
     WorkerCreate, WorkerUpdate, WorkerResponse,
     AttendanceCreate, AttendanceUpdate, AttendanceResponse
 )
 from app.utils.dependencies import get_current_user, require_roles
+from app.services.notifications import create_notifications
 
 router = APIRouter(prefix="/workforce", tags=["Workforce & Attendance Tracking"])
 
@@ -121,12 +124,26 @@ def record_attendance(
         # Update existing record
         for field, value in attendance_in.model_dump().items():
             setattr(existing, field, value)
-        db.commit()
-        db.refresh(existing)
-        return existing
+        saved = existing
+    else:
+        db_attendance = Attendance(**attendance_in.model_dump())
+        db.add(db_attendance)
+        db.flush()
+        saved = db_attendance
 
-    db_attendance = Attendance(**attendance_in.model_dump())
-    db.add(db_attendance)
+    project = db.query(Project).filter(Project.id == saved.project_id).first()
+    worker = db.query(Worker).filter(Worker.id == saved.worker_id).first()
+    recipients = {project.manager_id if project else None, worker.contractor_id if worker else None} - {None, current_user.id}
+    if saved.status in {AttendanceStatus.ABSENT.value, AttendanceStatus.LEAVE.value}:
+        create_notifications(
+            db,
+            user_ids=recipients,
+            title=f"Attendance Alert: {worker.name if worker else 'Worker'}",
+            message=f"{saved.status.title()} attendance recorded for {saved.date.isoformat()} at {project.name if project else 'project'}.",
+            notification_type=NotificationType.ATTENDANCE,
+            related_entity_type="attendance",
+            related_entity_id=saved.id,
+        )
     db.commit()
-    db.refresh(db_attendance)
-    return db_attendance
+    db.refresh(saved)
+    return saved

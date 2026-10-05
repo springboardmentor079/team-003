@@ -1,15 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.project import Project, ProjectMilestone
+from app.models.notification_report import NotificationType
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     MilestoneCreate, MilestoneUpdate, MilestoneResponse
 )
 from app.utils.dependencies import get_current_user, require_roles
+from app.services.notifications import create_notifications
 
 router = APIRouter(prefix="/projects", tags=["Project Management & Milestones"])
 
@@ -73,6 +76,15 @@ def update_project(
     for field, value in update_data.items():
         setattr(project, field, value)
 
+    create_notifications(
+        db,
+        user_ids={project.manager_id, project.client_id} - {None, current_user.id},
+        title=f"Project Updated: {project.name}",
+        message=f"Project details for {project.name} were updated.",
+        notification_type=NotificationType.PROJECT,
+        related_entity_type="project",
+        related_entity_id=project.id,
+    )
     db.commit()
     db.refresh(project)
     return project
@@ -116,6 +128,16 @@ def create_milestone(
         **milestone_in.model_dump()
     )
     db.add(db_milestone)
+    db.flush()
+    create_notifications(
+        db,
+        user_ids={project.manager_id, project.client_id} - {None, current_user.id},
+        title=f"Milestone Added: {db_milestone.title}",
+        message=f"A milestone was added to project {project.name}.",
+        notification_type=NotificationType.PROJECT,
+        related_entity_type="project_milestone",
+        related_entity_id=db_milestone.id,
+    )
     db.commit()
     db.refresh(db_milestone)
     return db_milestone
@@ -135,6 +157,20 @@ def update_milestone(
     for field, value in update_data.items():
         setattr(milestone, field, value)
 
+    notification_type = NotificationType.PROJECT
+    title = f"Milestone Updated: {milestone.title}"
+    if milestone.due_date and milestone.due_date < datetime.utcnow() and milestone.status != "completed":
+        notification_type = NotificationType.DEADLINE
+        title = f"Milestone Deadline Alert: {milestone.title}"
+    create_notifications(
+        db,
+        user_ids={milestone.project.manager_id, milestone.project.client_id} - {None, current_user.id},
+        title=title,
+        message=f"Milestone status is now {milestone.status} ({milestone.completion_percentage:g}% complete).",
+        notification_type=notification_type,
+        related_entity_type="project_milestone",
+        related_entity_id=milestone.id,
+    )
     db.commit()
     db.refresh(milestone)
     return milestone

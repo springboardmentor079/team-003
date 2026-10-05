@@ -1,358 +1,63 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { PageHeader, StateMessage } from '../../components/common/PageHeader';
+import { projectService } from '../../services';
+import { milestone3Api, type ApiVendor } from '../../services/milestone3';
+import { reportService, type ReportFilters, type ReportResult, type ReportType } from '../../services/reportService';
+import type { Project } from '../../types';
 
-import { FilterPanel } from '../../components/common/FilterPanel';
-import { Modal } from '../../components/common/Modal';
-import { PageHeader, SectionCard } from '../../components/common/PageHeader';
-import { Pagination } from '../../components/common/Pagination';
-import { SearchBar } from '../../components/common/SearchBar';
-import { StatusBadge } from '../../components/common/StatusBadge';
-import { Toast } from '../../components/common/Toast';
-import { FormField } from '../../components/forms/FormField';
-import { DataTable } from '../../components/tables/DataTable';
-import { useTableControls } from '../../hooks/useTableControls';
-import { generatedReports } from '../../data/notifications';
-import { projects } from '../../data/projects';
-import {
-  REPORT_TYPES,
-  type DataTableColumn,
-  type ExportFormat,
-  type FilterDefinition,
-  type GeneratedReport,
-} from '../../types';
-import { formatDate } from '../../utils/format';
-import { isValid, requiredField, type FieldErrors } from '../../utils/validation';
-
-const FILTERS: FilterDefinition[] = [
-  {
-    id: 'type',
-    label: 'Report type',
-    options: REPORT_TYPES.map((value) => ({ label: value, value })),
-  },
-  {
-    id: 'format',
-    label: 'Format',
-    options: ['PDF', 'Excel'].map((value) => ({ label: value, value })),
-  },
-  {
-    id: 'status',
-    label: 'Status',
-    options: ['Ready', 'Generating', 'Failed'].map((value) => ({ label: value, value })),
-  },
+const reportTypes: { value: ReportType; label: string }[] = [
+  { value: 'project-progress', label: 'Project Progress' },
+  { value: 'resources', label: 'Resource Utilization' },
+  { value: 'workforce', label: 'Workforce' },
+  { value: 'procurement', label: 'Procurement' },
+  { value: 'budget-cost', label: 'Budget / Cost' },
 ];
-
-interface GenerateFormValues {
-  type: string;
-  projectName: string;
-  periodFrom: string;
-  periodTo: string;
-  format: ExportFormat;
+const statusOptions: Partial<Record<ReportType, string[]>> = {
+  'project-progress': ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'],
+  resources: ['available', 'allocated', 'maintenance', 'decommissioned'],
+  workforce: ['active', 'inactive'],
+  procurement: ['pending', 'approved', 'rejected', 'ordered', 'delivered', 'completed'],
+};
+function label(value: string) { return value.replaceAll('_', ' ').replaceAll('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
+function display(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) return new Date(value).toLocaleDateString();
+  return String(value);
 }
 
-const EMPTY_FORM: GenerateFormValues = {
-  type: '',
-  projectName: 'All Projects',
-  periodFrom: '',
-  periodTo: '',
-  format: 'PDF',
-};
-
-/**
- * Reports & Documentation — document module 10. Five report types plus PDF
- * and Excel export only (the document specifies no other formats). No Figma
- * screen existed for this module.
- */
 export function ReportsPage() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [values, setValues] = useState<GenerateFormValues>(EMPTY_FORM);
-  const [errors, setErrors] = useState<FieldErrors<GenerateFormValues>>({});
+  const [projects, setProjects] = useState<Project[]>([]); const [vendors, setVendors] = useState<ApiVendor[]>([]);
+  const [reportType, setReportType] = useState<ReportType>('project-progress'); const [projectId, setProjectId] = useState('');
+  const [vendorId, setVendorId] = useState(''); const [status, setStatus] = useState('');
+  const [dateFrom, setDateFrom] = useState(''); const [dateTo, setDateTo] = useState('');
+  const [result, setResult] = useState<ReportResult | null>(null); const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState<'pdf' | 'xlsx' | null>(null); const [error, setError] = useState('');
 
-  const controls = useTableControls<GeneratedReport>({
-    rows: generatedReports,
-    searchKeys: ['reportCode', 'type', 'projectName', 'generatedBy'],
-    filterKeys: { type: 'type', format: 'format', status: 'status' },
-    initialSortKey: 'generatedOn',
-    initialSortDirection: 'desc',
-    pageSize: 8,
-  });
+  useEffect(() => { Promise.all([projectService.list(), milestone3Api.vendors()]).then(([p, v]) => { setProjects(p); setVendors(v); }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load report filters.')); }, []);
+  function changeType(type: ReportType) { setReportType(type); setStatus(''); setVendorId(''); setResult(null); setError(''); }
+  const filters = useMemo<ReportFilters>(() => ({ projectId: projectId ? Number(projectId) : undefined, vendorId: reportType === 'procurement' && vendorId ? Number(vendorId) : undefined, status: status || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined }), [dateFrom, dateTo, projectId, reportType, status, vendorId]);
+  async function generate(event: FormEvent) { event.preventDefault(); if (dateFrom && dateTo && dateFrom > dateTo) { setError('From date must be on or before To date.'); return; } setLoading(true); setError(''); setResult(null); try { setResult(await reportService.generate(reportType, filters)); } catch (e) { setError(e instanceof Error ? e.message : 'Report generation failed.'); } finally { setLoading(false); } }
+  async function exportReport(format: 'pdf' | 'xlsx') { setExporting(format); setError(''); try { await reportService.export(reportType, filters, format); } catch (e) { setError(e instanceof Error ? e.message : 'Report export failed.'); } finally { setExporting(null); } }
+  const headers = result?.data.length ? Object.keys(result.data[0]) : []; const statuses = statusOptions[reportType] ?? [];
 
-  function setField(field: keyof GenerateFormValues, value: string) {
-    setValues((current) => ({ ...current, [field]: value }));
-    setErrors((current) => ({ ...current, [field]: undefined }));
-  }
-
-  function handleGenerate(event: React.FormEvent) {
-    event.preventDefault();
-
-    const nextErrors: FieldErrors<GenerateFormValues> = {
-      type: requiredField(values.type, 'Report type'),
-      periodFrom: requiredField(values.periodFrom, 'Period start'),
-      periodTo: requiredField(values.periodTo, 'Period end'),
-    };
-
-    setErrors(nextErrors);
-    if (!isValid(nextErrors)) return;
-
-    setToast(`${values.type} is being generated as ${values.format}.`);
-    setValues(EMPTY_FORM);
-    setModalOpen(false);
-  }
-
-  function handleExport(report: GeneratedReport) {
-    if (report.status !== 'Ready') return;
-    setToast(`Downloading ${report.reportCode} (${report.format})…`);
-  }
-
-  const columns: DataTableColumn<GeneratedReport>[] = [
-    {
-      key: 'reportCode',
-      header: 'Report',
-      sortable: true,
-      width: '110px',
-      render: (row) => <span className="bt-mono small bt-text-dim">{row.reportCode}</span>,
-    },
-    {
-      key: 'type',
-      header: 'Report type',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <p className="mb-1 fw-semibold">{row.type}</p>
-          <p className="bt-label mb-0">{row.projectName}</p>
-        </div>
-      ),
-    },
-    {
-      key: 'periodFrom',
-      header: 'Period',
-      render: (row) => (
-        <span className="bt-mono small">
-          {formatDate(row.periodFrom)} — {formatDate(row.periodTo)}
-        </span>
-      ),
-    },
-    { key: 'generatedBy', header: 'Generated by', sortable: true },
-    {
-      key: 'generatedOn',
-      header: 'Generated on',
-      sortable: true,
-      render: (row) => <span className="bt-mono small">{formatDate(row.generatedOn)}</span>,
-    },
-    {
-      key: 'format',
-      header: 'Format',
-      sortable: true,
-      render: (row) => (
-        <span className="d-inline-flex align-items-center gap-2">
-          <i
-            className={`bi ${row.format === 'PDF' ? 'bi-file-earmark-pdf' : 'bi-file-earmark-spreadsheet'}`}
-            style={{ color: row.format === 'PDF' ? 'var(--bt-red)' : 'var(--bt-green)' }}
-            aria-hidden="true"
-          />
-          {row.format}
-        </span>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      render: (row) => <StatusBadge status={row.status} />,
-    },
-    {
-      key: 'sizeKb',
-      header: 'Action',
-      align: 'end',
-      width: '120px',
-      render: (row) => (
-        <button
-          type="button"
-          className="btn btn-outline-bt btn-sm"
-          onClick={() => handleExport(row)}
-          disabled={row.status !== 'Ready'}
-        >
-          <i className="bi bi-download me-1" aria-hidden="true" />
-          Export
-        </button>
-      ),
-    },
-  ];
-
-  return (
-    <>
-      <PageHeader
-        title="Reports & Documentation"
-        subtitle="Generate progress, resource, budget, workforce and procurement reports with PDF and Excel export."
-        actions={
-          <button type="button" className="btn btn-accent" onClick={() => setModalOpen(true)}>
-            <i className="bi bi-file-earmark-plus me-2" aria-hidden="true" />
-            Generate report
-          </button>
-        }
-      />
-
-      {/* Report type cards — the five document report types */}
-      <div className="row g-3 g-lg-4 mb-4">
-        {REPORT_TYPES.map((type, index) => {
-          const count = generatedReports.filter((report) => report.type === type).length;
-          const icons = [
-            'bi-graph-up-arrow',
-            'bi-truck-front',
-            'bi-cash-coin',
-            'bi-people',
-            'bi-cart3',
-          ];
-          return (
-            <div className="col-12 col-sm-6 col-xl" key={type}>
-              <button
-                type="button"
-                className="bt-card bt-card-hover bt-card-pad w-100 text-start d-flex flex-column"
-                onClick={() => {
-                  setValues({ ...EMPTY_FORM, type });
-                  setModalOpen(true);
-                }}
-              >
-                <span className="bt-icon-tile bt-accent mb-3">
-                  <i className={`bi ${icons[index]}`} aria-hidden="true" />
-                </span>
-                <p className="mb-1 fw-semibold" style={{ fontSize: '0.9rem' }}>
-                  {type}
-                </p>
-                <p className="bt-label mb-0">{count} generated</p>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <SectionCard
-        title="Generated Reports"
-        subtitle={`${controls.total} report${controls.total === 1 ? '' : 's'} in the current view`}
-        flush
-        actions={
-          <>
-            <SearchBar
-              value={controls.search}
-              onChange={controls.setSearch}
-              placeholder="Search reports"
-              label="Search reports"
-              size="sm"
-            />
-            <FilterPanel
-              filters={FILTERS}
-              values={controls.filters}
-              onChange={controls.setFilter}
-              onClear={controls.clearFilters}
-              activeCount={controls.activeFilterCount}
-            />
-          </>
-        }
-      >
-        <DataTable
-          columns={columns}
-          rows={controls.pageRows}
-          rowKey={(row) => row.id}
-          sortKey={controls.sortKey}
-          sortDirection={controls.sortDirection}
-          onSort={controls.toggleSort}
-          caption="Generated reports with format and status"
-        />
-
-        <hr className="bt-divider m-0" />
-
-        <Pagination
-          page={controls.page}
-          pageCount={controls.pageCount}
-          rangeStart={controls.rangeStart}
-          rangeEnd={controls.rangeEnd}
-          total={controls.total}
-          itemLabel="Reports"
-          onPageChange={controls.setPage}
-        />
-      </SectionCard>
-
-      <Modal
-        open={modalOpen}
-        title="Generate report"
-        description="Produce a report for a selected period and export it as PDF or Excel."
-        onClose={() => setModalOpen(false)}
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn btn-outline-bt"
-              onClick={() => setModalOpen(false)}
-            >
-              Cancel
-            </button>
-            <button type="submit" form="generate-report-form" className="btn btn-accent">
-              Generate
-            </button>
-          </>
-        }
-      >
-        <form id="generate-report-form" onSubmit={handleGenerate} noValidate>
-          <div className="row g-3">
-            <div className="col-12">
-              <FormField
-                as="select"
-                label="Report type"
-                value={values.type}
-                onChange={(value) => setField('type', value)}
-                options={REPORT_TYPES}
-                error={errors.type}
-                required
-              />
-            </div>
-
-            <div className="col-12">
-              <FormField
-                as="select"
-                label="Project"
-                value={values.projectName}
-                onChange={(value) => setField('projectName', value)}
-                options={['All Projects', ...projects.map((project) => project.name)]}
-                placeholderOption="Select project"
-              />
-            </div>
-
-            <div className="col-12 col-md-6">
-              <FormField
-                type="date"
-                label="Period from"
-                value={values.periodFrom}
-                onChange={(value) => setField('periodFrom', value)}
-                error={errors.periodFrom}
-                required
-              />
-            </div>
-
-            <div className="col-12 col-md-6">
-              <FormField
-                type="date"
-                label="Period to"
-                value={values.periodTo}
-                onChange={(value) => setField('periodTo', value)}
-                error={errors.periodTo}
-                required
-              />
-            </div>
-
-            <div className="col-12">
-              <FormField
-                as="select"
-                label="Export format"
-                value={values.format}
-                onChange={(value) => setField('format', value)}
-                options={['PDF', 'Excel']}
-                placeholderOption="Select format"
-              />
-            </div>
-          </div>
-        </form>
-      </Modal>
-
-      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
-    </>
-  );
+  return <><PageHeader title="Reports & Documentation" subtitle="Generate operational reports from current BuildTrack database records." />
+    {error && <div className="alert alert-danger" role="alert">{error}</div>}
+    <section className="bt-card bt-card-pad mb-4"><form onSubmit={generate} className="row g-3 align-items-end">
+      <div className="col-12 col-md-4 col-xl-3"><label className="form-label" htmlFor="reportType">Report type</label><select id="reportType" className="form-select" value={reportType} onChange={(e) => changeType(e.target.value as ReportType)}>{reportTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></div>
+      <div className="col-12 col-md-4 col-xl-3"><label className="form-label" htmlFor="reportProject">Project</label><select id="reportProject" className="form-select" value={projectId} onChange={(e) => setProjectId(e.target.value)}><option value="">All accessible projects</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+      {reportType === 'procurement' && <div className="col-12 col-md-4 col-xl-3"><label className="form-label" htmlFor="reportVendor">Vendor</label><select id="reportVendor" className="form-select" value={vendorId} onChange={(e) => setVendorId(e.target.value)}><option value="">All vendors</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></div>}
+      {!!statuses.length && <div className="col-12 col-md-4 col-xl-2"><label className="form-label" htmlFor="reportStatus">Status</label><select id="reportStatus" className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All statuses</option>{statuses.map((option) => <option key={option} value={option}>{label(option)}</option>)}</select></div>}
+      <div className="col-12 col-md-4 col-xl-2"><label className="form-label" htmlFor="reportFrom">From</label><input id="reportFrom" type="date" className="form-control" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
+      <div className="col-12 col-md-4 col-xl-2"><label className="form-label" htmlFor="reportTo">To</label><input id="reportTo" type="date" className="form-control" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></div>
+      <div className="col-12 col-md-4 col-xl-2"><button className="btn btn-accent w-100" disabled={loading}>{loading ? 'Generating…' : 'Generate report'}</button></div>
+    </form></section>
+    {loading && <section className="bt-card"><StateMessage icon="bi-hourglass-split" title="Generating report" message="Calculating results from current database records." /></section>}
+    {!loading && result && <><section className="row g-3 mb-4" aria-label="Report summary">{Object.entries(result.summary).map(([key, value]) => <div className="col-6 col-lg-3" key={key}><div className="bt-card bt-card-pad h-100"><div className="text-secondary small">{label(key)}</div><div className="h4 mb-0 mt-2">{display(value)}</div></div></div>)}</section>
+      <section className="bt-card"><header className="p-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2"><div><h2 className="h5 mb-1">{label(result.report_type)} report</h2><div className="text-secondary small">Generated {new Date(result.generated_at).toLocaleString()}</div></div><div className="d-flex gap-2"><button className="btn btn-outline-bt btn-sm" disabled={!result.data.length || !!exporting} onClick={() => void exportReport('pdf')}>{exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}</button><button className="btn btn-outline-bt btn-sm" disabled={!result.data.length || !!exporting} onClick={() => void exportReport('xlsx')}>{exporting === 'xlsx' ? 'Exporting…' : 'Export Excel'}</button></div></header>
+        {!result.data.length ? <StateMessage icon="bi-file-earmark-bar-graph" title="No report records found" message="No database records match the selected filters." /> : <div className="table-responsive"><table className="bt-table"><thead><tr>{headers.map((header) => <th key={header}>{label(header)}</th>)}</tr></thead><tbody>{result.data.map((row, index) => <tr key={String(row.id ?? row.project_id ?? row.worker_id ?? row.resource_id ?? row.request_id ?? index)}>{headers.map((header) => <td key={header}>{display(row[header])}</td>)}</tr>)}</tbody></table></div>}
+      </section></>}
+    {!loading && !result && <section className="bt-card"><StateMessage icon="bi-file-earmark-bar-graph" title="Choose a report" message="Select filters and generate a report to view live results." /></section>}
+  </>;
 }
