@@ -11,6 +11,15 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure every table defined by the ORM models exists. This is idempotent
+    # (only missing tables are created) and keeps a dev SQLite database in sync
+    # with newly added models — e.g. the procurement entities (vendors,
+    # purchase_orders, invoices) added in a later milestone. Alembic migrations
+    # under migrations/ remain the source of truth for production databases.
+    from app.database import Base, engine
+    import app.models  # noqa: F401 — registers all models on Base.metadata
+    Base.metadata.create_all(bind=engine)
+
     # Auto seed database on initial launch if empty
     seed_database()
     yield
