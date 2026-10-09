@@ -16,6 +16,11 @@
 **/__pycache__/
 **/*.pyc
 **/*.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/documents/
+backend/uploads/documents/*
+!backend/uploads/documents/.gitkeep
 
 # Agent / editor tooling (local only)
 .agents/

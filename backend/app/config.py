@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     
     # SQLite as fallback, PostgreSQL in production
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./buildtrack.db")
+    UPLOAD_DIR: str = os.getenv("BUILDTRACK_UPLOAD_DIR", "uploads/documents")
+    MAX_UPLOAD_SIZE_MB: int = 20
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -12,6 +12,8 @@ from app.models.inventory import Inventory
 from app.models.workforce import Worker, Attendance, AttendanceStatus
 from app.models.procurement import Procurement, ProcurementStatus
 from app.schemas.analytics import ProjectAnalyticsSummary
+from app.schemas.dashboard import DashboardResponse
+from app.services.dashboard import build_dashboard, visible_project_ids
 from app.utils.dependencies import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["Real-time Analytics & Dashboards"])
@@ -25,6 +27,8 @@ def get_project_analytics(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    if project.id not in visible_project_ids(db, current_user):
+        raise HTTPException(status_code=403, detail="Project access denied")
 
     # Milestone stats
     milestones = db.query(ProjectMilestone).filter(ProjectMilestone.project_id == project_id).all()
@@ -76,37 +80,9 @@ def get_project_analytics(
         "pending_procurements": pending_procurements
     }
 
-@router.get("/dashboard/role-summary")
+@router.get("/dashboard/role-summary", response_model=DashboardResponse)
 def get_role_dashboard_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Returns role-specific KPI summary metrics for Administrator, Project Manager, Site Engineer, Contractor, and Client.
-    """
-    total_projects = db.query(Project).count()
-    active_projects = db.query(Project).filter(Project.status == "in_progress").count()
-    total_users = db.query(User).count()
-    total_workers = db.query(Worker).count()
-
-    low_stock_items = db.query(Inventory).filter(
-        Inventory.quantity <= Inventory.min_threshold_quantity
-    ).count()
-
-    pending_procurements = db.query(Procurement).filter(
-        Procurement.status == ProcurementStatus.PENDING.value
-    ).count()
-
-    # Role specific customizations
-    user_role = current_user.role
-
-    return {
-        "user_role": user_role,
-        "full_name": current_user.full_name,
-        "total_projects": total_projects,
-        "active_projects": active_projects,
-        "total_users": total_users if user_role == UserRole.ADMINISTRATOR.value else None,
-        "total_workers": total_workers,
-        "low_stock_alerts_count": low_stock_items,
-        "pending_procurements_count": pending_procurements
-    }
+    return build_dashboard(db, current_user)

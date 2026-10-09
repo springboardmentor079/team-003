@@ -10,6 +10,9 @@ import { NotificationPanel } from './NotificationPanel';
 interface TopbarProps {
   onOpenSidebar: () => void;
   notifications: NotificationItem[];
+  unreadCount: number;
+  onNotificationsOpen: () => void;
+  onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
 }
 
@@ -27,7 +30,7 @@ function useBreadcrumb(): string {
  * account menu. Combines the header treatments from the three Figma app
  * screens into one consistent component.
  */
-export function Topbar({ onOpenSidebar, notifications, onMarkAllRead }: TopbarProps) {
+export function Topbar({ onOpenSidebar, notifications, unreadCount, onNotificationsOpen, onMarkRead, onMarkAllRead }: TopbarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const breadcrumb = useBreadcrumb();
@@ -39,7 +42,6 @@ export function Topbar({ onOpenSidebar, notifications, onMarkAllRead }: TopbarPr
   const notificationsRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter((item) => !item.read).length;
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -119,19 +121,28 @@ export function Topbar({ onOpenSidebar, notifications, onMarkAllRead }: TopbarPr
             type="button"
             className="btn btn-ghost btn-icon"
             onClick={() => {
-              setNotificationsOpen((current) => !current);
+              setNotificationsOpen((current) => {
+                if (!current) onNotificationsOpen();
+                return !current;
+              });
               setAccountOpen(false);
             }}
             aria-label={`Notifications (${unreadCount} unread)`}
             aria-expanded={notificationsOpen}
           >
             <i className="bi bi-bell" aria-hidden="true" />
-            {unreadCount > 0 && <span className="bt-dot-indicator" aria-hidden="true" />}
+            {unreadCount > 0 && (
+              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
 
           {notificationsOpen && (
             <NotificationPanel
               notifications={notifications}
+              unreadCount={unreadCount}
+              onMarkRead={onMarkRead}
               onMarkAllRead={onMarkAllRead}
               onClose={() => setNotificationsOpen(false)}
             />

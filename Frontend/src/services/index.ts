@@ -27,7 +27,6 @@ import {
   materials,
   stockByCategory,
 } from '../data/inventory';
-import { generatedReports, notifications } from '../data/notifications';
 import {
   invoices,
   procurementByCategory,
@@ -82,6 +81,7 @@ import {
 } from './mappers';
 
 export { authService } from './authService';
+export { reportService } from './reportService';
 export { ApiError, API_BASE_URL, isOffline } from './apiClient';
 
 /**
@@ -208,10 +208,6 @@ export const procurementService = {
 };
 
 /** Notifications — document module 8. */
-export const notificationService = {
-  list: () => mockResponse(notifications),
-};
-
 /** Dashboards & analytics — document module 9. */
 export const analyticsService = {
   overviewKpis: () => mockResponse(overviewKpis),
@@ -221,10 +217,6 @@ export const analyticsService = {
 };
 
 /** Reports & documentation — document module 10. */
-export const reportService = {
-  list: () => mockResponse(generatedReports),
-};
-
 /** Budget & cost management — document module 11. */
 export const budgetService = {
   lines: () => mockResponse(budgetLines),
