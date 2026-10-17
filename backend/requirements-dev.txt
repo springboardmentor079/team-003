@@ -1,0 +1,4 @@
+# Test dependencies (Milestone 4/7 — testing & validations). Install with:
+#   pip install -r requirements-dev.txt
+pytest>=8.0
+httpx>=0.27
